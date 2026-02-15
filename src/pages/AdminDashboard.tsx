@@ -1,0 +1,670 @@
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, Save, CheckCircle, XCircle } from 'lucide-react';
+import Navbar from '../components/layout/Navbar';
+import { db } from '../lib/firebase';
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '../lib/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_EMAILS } from '../lib/admins';
+import Toast from '../components/ui/Toast';
+import type { ToastType } from '../components/ui/Toast';
+import ConfirmModal from '../components/ui/ConfirmModal';
+
+export default function AdminDashboard() {
+    const { currentUser } = useAuth();
+    const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState<'approvals' | 'games' | 'news' | 'rankings' | 'tournaments' | 'all_tournaments' | 'stats'>('approvals');
+
+    // State for CMS Content
+    const [games, setGames] = useState<any[]>([]);
+    const [news, setNews] = useState<any[]>([]);
+    const [rankings, setRankings] = useState<any[]>([]);
+    const [tournaments, setTournaments] = useState<any[]>([]);
+    const [allTournaments, setAllTournaments] = useState<any[]>([]);
+    const [pendingTournaments, setPendingTournaments] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Form States
+    const [gameForm, setGameForm] = useState({ name: '', imageUrl: '', status: 'Active' });
+    const [newsForm, setNewsForm] = useState({ title: '', summary: '', content: '', imageUrl: '' });
+    const [rankForm, setRankForm] = useState({ teamName: '', points: 0, rank: 0, trend: 'stable' });
+    const [tourneyForm, setTourneyForm] = useState({ name: '', date: '', prizePool: '', imageUrl: '', status: 'upcoming' });
+    const [statsForm, setStatsForm] = useState({ activeEvents: 0 });
+
+    // Toast
+    const [toast, setToast] = useState<{ message: string; type: ToastType; visible: boolean }>({
+        message: '', type: 'info', visible: false
+    });
+    const showToast = (message: string, type: ToastType) => setToast({ message, type, visible: true });
+
+    // Confirm Modal
+    const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({
+        open: false, title: '', message: '', onConfirm: () => { }
+    });
+
+    // Check Auth + Admin
+    const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
+
+    useEffect(() => {
+        if (!currentUser) {
+            navigate('/admin-login');
+        } else if (!isAdmin) {
+            navigate('/');
+        }
+    }, [currentUser, isAdmin, navigate]);
+
+    // Fetch Content
+    useEffect(() => {
+        const fetchContent = async () => {
+            setLoading(true);
+            try {
+                if (activeTab === 'approvals') {
+                    const snap = await getDocs(collection(db, 'tournaments'));
+                    const pending = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter((t: any) => t.status === 'pending_approval');
+                    setPendingTournaments(pending);
+                } else if (activeTab === 'games') {
+                    const snap = await getDocs(collection(db, 'cms_games'));
+                    setGames(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                } else if (activeTab === 'news') {
+                    const snap = await getDocs(collection(db, 'cms_news'));
+                    setNews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                } else if (activeTab === 'rankings') {
+                    const snap = await getDocs(collection(db, 'cms_rankings'));
+                    setRankings(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => a.rank - b.rank));
+                } else if (activeTab === 'tournaments') {
+                    const snap = await getDocs(collection(db, 'cms_featured_tournaments'));
+                    setTournaments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                } else if (activeTab === 'all_tournaments') {
+                    const snap = await getDocs(collection(db, 'tournaments'));
+                    setAllTournaments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                } else if (activeTab === 'stats') {
+                    const snap = await getDocs(collection(db, 'cms_settings'));
+                    if (!snap.empty) {
+                        const data = snap.docs[0].data();
+                        setStatsForm({ activeEvents: data.activeEventsCount || 0 });
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching CMS content:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchContent();
+    }, [activeTab]);
+
+    // Approve Tournament — bracket already generated by organizer
+    const handleApproveTournament = async (id: string) => {
+        try {
+            await updateDoc(doc(db, 'tournaments', id), { status: 'approved' });
+            setPendingTournaments(prev => prev.filter(t => t.id !== id));
+            showToast('Tournament approved and now live!', 'success');
+        } catch (e) {
+            console.error('Error approving tournament:', e);
+            showToast('Failed to approve tournament.', 'error');
+        }
+    };
+
+    const handleRejectTournament = (id: string, name: string) => {
+        setConfirmModal({
+            open: true, title: 'Reject Tournament',
+            message: `Reject "${name}"? This will remove it from the approval queue.`,
+            onConfirm: async () => {
+                try {
+                    await updateDoc(doc(db, 'tournaments', id), { status: 'rejected' });
+                    setPendingTournaments(prev => prev.filter(t => t.id !== id));
+                    setConfirmModal(prev => ({ ...prev, open: false }));
+                    showToast('Tournament rejected.', 'success');
+                } catch (e) {
+                    console.error('Error rejecting tournament:', e);
+                    showToast('Failed to reject tournament.', 'error');
+                    setConfirmModal(prev => ({ ...prev, open: false }));
+                }
+            }
+        });
+    };
+
+    // Handlers
+    const handleAddGame = async () => {
+        if (!gameForm.name) return;
+        await addDoc(collection(db, 'cms_games'), gameForm);
+        setGameForm({ name: '', imageUrl: '', status: 'Active' });
+        showToast("Game added successfully!", "success");
+        const snap = await getDocs(collection(db, 'cms_games'));
+        setGames(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    };
+
+    const handleDeleteGame = (id: string) => {
+        setConfirmModal({
+            open: true, title: 'Delete Game', message: 'Are you sure you want to delete this game?',
+            onConfirm: async () => {
+                await deleteDoc(doc(db, 'cms_games', id));
+                setGames(games.filter(g => g.id !== id));
+                setConfirmModal(prev => ({ ...prev, open: false }));
+                showToast("Game deleted.", "success");
+            }
+        });
+    };
+
+    const handleAddNews = async () => {
+        if (!newsForm.title) return;
+        await addDoc(collection(db, 'cms_news'), { ...newsForm, date: serverTimestamp() });
+        setNewsForm({ title: '', summary: '', content: '', imageUrl: '' });
+        showToast("News article published!", "success");
+        const snap = await getDocs(collection(db, 'cms_news'));
+        setNews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    };
+
+    const handleDeleteNews = (id: string) => {
+        setConfirmModal({
+            open: true, title: 'Delete Article', message: 'Are you sure you want to delete this news article?',
+            onConfirm: async () => {
+                await deleteDoc(doc(db, 'cms_news', id));
+                setNews(news.filter(n => n.id !== id));
+                setConfirmModal(prev => ({ ...prev, open: false }));
+                showToast("Article deleted.", "success");
+            }
+        });
+    };
+
+    const handleAddRank = async () => {
+        if (!rankForm.teamName) return;
+        await addDoc(collection(db, 'cms_rankings'), rankForm);
+        setRankForm({ teamName: '', points: 0, rank: 0, trend: 'stable' });
+        showToast("Ranking entry added!", "success");
+        const snap = await getDocs(collection(db, 'cms_rankings'));
+        setRankings(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => a.rank - b.rank));
+    };
+
+    const handleDeleteRank = (id: string) => {
+        setConfirmModal({
+            open: true, title: 'Delete Entry', message: 'Are you sure you want to delete this ranking entry?',
+            onConfirm: async () => {
+                await deleteDoc(doc(db, 'cms_rankings', id));
+                setRankings(rankings.filter(r => r.id !== id));
+                setConfirmModal(prev => ({ ...prev, open: false }));
+                showToast("Entry deleted.", "success");
+            }
+        });
+    };
+
+    const handleAddTourney = async () => {
+        if (!tourneyForm.name) return;
+        await addDoc(collection(db, 'cms_featured_tournaments'), tourneyForm);
+        setTourneyForm({ name: '', date: '', prizePool: '', imageUrl: '', status: 'upcoming' });
+        showToast("Featured tournament added!", "success");
+        const snap = await getDocs(collection(db, 'cms_featured_tournaments'));
+        setTournaments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    };
+
+    const handleDeleteTourney = (id: string) => {
+        setConfirmModal({
+            open: true, title: 'Delete Tournament', message: 'Are you sure you want to delete this featured tournament?',
+            onConfirm: async () => {
+                await deleteDoc(doc(db, 'cms_featured_tournaments', id));
+                setTournaments(tournaments.filter(t => t.id !== id));
+                setConfirmModal(prev => ({ ...prev, open: false }));
+                showToast("Tournament removed.", "success");
+            }
+        });
+    };
+
+    const handleDeleteUserTournament = (id: string, name: string) => {
+        setConfirmModal({
+            open: true, title: 'Delete User Tournament',
+            message: `Are you sure you want to permanently delete "${name}"? This was created by a user and cannot be recovered.`,
+            onConfirm: async () => {
+                try {
+                    await deleteDoc(doc(db, 'tournaments', id));
+                    setAllTournaments(allTournaments.filter(t => t.id !== id));
+                    setConfirmModal(prev => ({ ...prev, open: false }));
+                    showToast("Tournament deleted.", "success");
+                } catch (e) {
+                    console.error("Error deleting tournament:", e);
+                    showToast("Failed to delete tournament.", "error");
+                    setConfirmModal(prev => ({ ...prev, open: false }));
+                }
+            }
+        });
+    };
+
+    const handleUpdateStats = async () => {
+        try {
+            const settingsRef = collection(db, 'cms_settings');
+            const snap = await getDocs(settingsRef);
+
+            if (snap.empty) {
+                await addDoc(settingsRef, { activeEventsCount: statsForm.activeEvents });
+            } else {
+                await updateDoc(doc(db, 'cms_settings', snap.docs[0].id), { activeEventsCount: statsForm.activeEvents });
+            }
+            showToast("Stats updated successfully!", "success");
+        } catch (e) {
+            console.error("Error updating stats:", e);
+            showToast("Failed to update stats.", "error");
+        }
+    };
+
+    const tabList = [
+        { key: 'approvals', label: '🔔 Approvals' },
+        { key: 'games', label: 'Games' },
+        { key: 'news', label: 'News' },
+        { key: 'rankings', label: 'Rankings' },
+        { key: 'tournaments', label: 'Featured' },
+        { key: 'all_tournaments', label: 'All Tournaments' },
+        { key: 'stats', label: 'Stats' },
+    ];
+
+    return (
+        <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans">
+            <Navbar />
+            <div className="container mx-auto px-6 py-24">
+                <h1 className="text-4xl font-display font-bold mb-8">Admin Dashboard</h1>
+
+                {/* Tabs */}
+                <div className="flex gap-4 border-b border-white/10 mb-8 overflow-x-auto pb-2">
+                    {tabList.map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key as any)}
+                            className={`px-6 py-3 font-bold transition-colors whitespace-nowrap ${activeTab === tab.key ? 'text-accent border-b-2 border-accent' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Content Area */}
+                <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-6">
+
+                    {loading && (
+                        <div className="text-center py-12 text-gray-500">Loading...</div>
+                    )}
+
+                    {/* APPROVALS TAB */}
+                    {!loading && activeTab === 'approvals' && (
+                        <div>
+                            <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                                <p className="text-yellow-400 text-sm font-bold">⏳ Review and approve tournament submissions from organizers. Approved tournaments appear in the Featured section on the home page.</p>
+                            </div>
+                            {pendingTournaments.length === 0 ? (
+                                <div className="text-center py-16 text-gray-500">
+                                    <CheckCircle className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                                    <p className="text-lg font-bold">All caught up!</p>
+                                    <p className="text-sm">No pending tournament approvals.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {pendingTournaments.map(t => (
+                                        <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
+                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                {t.imageUrl ? (
+                                                    <img src={t.imageUrl} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                                                ) : (
+                                                    <div className="w-14 h-14 bg-neutral-800 rounded-lg flex items-center justify-center font-bold text-xs text-gray-500 shrink-0">
+                                                        {t.name?.substring(0, 2)}
+                                                    </div>
+                                                )}
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold text-lg truncate">{t.name}</h4>
+                                                    <p className="text-sm text-gray-400">
+                                                        {t.teams?.length || 0} teams
+                                                        {t.prizePool && <span className="text-accent ml-2">• 💰 {t.prizePool}</span>}
+                                                    </p>
+                                                    {t.description && (
+                                                        <p className="text-xs text-gray-500 mt-1 line-clamp-1">{t.description}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <button
+                                                    onClick={() => navigate(`/tournament/${t.id}`)}
+                                                    className="text-sm text-gray-400 hover:text-white px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition"
+                                                >
+                                                    Preview
+                                                </button>
+                                                <button
+                                                    onClick={() => handleApproveTournament(t.id)}
+                                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2.5 rounded-xl transition shadow-lg text-sm"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" /> Approve
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRejectTournament(t.id, t.name)}
+                                                    className="flex items-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-bold px-5 py-2.5 rounded-xl transition border border-red-500/20 text-sm"
+                                                >
+                                                    <XCircle className="w-4 h-4" /> Reject
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* GAMES TAB */}
+                    {!loading && activeTab === 'games' && (
+                        <div>
+                            <div className="mb-8 p-4 bg-white/5 rounded-xl">
+                                <h3 className="text-lg font-bold mb-4">Add New Game</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Game Name"
+                                        value={gameForm.name}
+                                        onChange={e => setGameForm({ ...gameForm, name: e.target.value })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Image URL (Logo)"
+                                        value={gameForm.imageUrl}
+                                        onChange={e => setGameForm({ ...gameForm, imageUrl: e.target.value })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <button
+                                        onClick={handleAddGame}
+                                        className="bg-accent text-black font-bold rounded-lg p-3 flex items-center justify-center gap-2 hover:bg-accent/90"
+                                    >
+                                        <Plus className="w-5 h-5" /> Add Game
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {games.map(game => (
+                                    <div key={game.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            {game.imageUrl && <img src={game.imageUrl} alt={game.name} className="w-10 h-10 rounded-full object-cover" />}
+                                            <span className="font-bold">{game.name}</span>
+                                        </div>
+                                        <button onClick={() => handleDeleteGame(game.id)} className="text-red-500 hover:text-red-400 p-2">
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* NEWS TAB */}
+                    {!loading && activeTab === 'news' && (
+                        <div>
+                            <div className="mb-8 p-4 bg-white/5 rounded-xl">
+                                <h3 className="text-lg font-bold mb-4">Post News</h3>
+                                <div className="space-y-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Headline"
+                                        value={newsForm.title}
+                                        onChange={e => setNewsForm({ ...newsForm, title: e.target.value })}
+                                        className="w-full bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Summary (Short description)"
+                                        value={newsForm.summary}
+                                        onChange={e => setNewsForm({ ...newsForm, summary: e.target.value })}
+                                        className="w-full bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <textarea
+                                        placeholder="Full Content / Article Body"
+                                        value={newsForm.content}
+                                        onChange={e => setNewsForm({ ...newsForm, content: e.target.value })}
+                                        className="w-full bg-black border border-white/20 rounded-lg p-3 h-48 font-mono text-sm"
+                                    />
+                                    <div className="flex gap-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Image URL (Banner)"
+                                            value={newsForm.imageUrl}
+                                            onChange={e => setNewsForm({ ...newsForm, imageUrl: e.target.value })}
+                                            className="flex-1 bg-black border border-white/20 rounded-lg p-3"
+                                        />
+                                        <button
+                                            onClick={handleAddNews}
+                                            className="bg-accent text-black font-bold rounded-lg px-8 py-3 flex items-center gap-2 hover:bg-accent/90"
+                                        >
+                                            <Plus className="w-5 h-5" /> Publish
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                {news.map(item => (
+                                    <div key={item.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex gap-4">
+                                        {item.imageUrl && <img src={item.imageUrl} alt="" className="w-24 h-24 object-cover rounded-lg" />}
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-xl mb-1">{item.title}</h4>
+                                            <p className="text-gray-400 text-sm mb-2">
+                                                {item.date && typeof item.date.toDate === 'function' ? item.date.toDate().toLocaleDateString() : 'No date'}
+                                            </p>
+                                            <p className="text-gray-300 line-clamp-2">{item.summary}</p>
+                                        </div>
+                                        <button onClick={() => handleDeleteNews(item.id)} className="text-red-500 hover:text-red-400 p-2 self-start">
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* RANKINGS TAB */}
+                    {!loading && activeTab === 'rankings' && (
+                        <div>
+                            <div className="mb-8 p-4 bg-white/5 rounded-xl">
+                                <h3 className="text-lg font-bold mb-4">Add Ranking Entry</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                    <input
+                                        type="number"
+                                        placeholder="Rank"
+                                        value={rankForm.rank}
+                                        onChange={e => setRankForm({ ...rankForm, rank: parseInt(e.target.value) })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Team Name"
+                                        value={rankForm.teamName}
+                                        onChange={e => setRankForm({ ...rankForm, teamName: e.target.value })}
+                                        className="bg-black border border-white/20 rounded-lg p-3 md:col-span-2"
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="Points"
+                                        value={rankForm.points}
+                                        onChange={e => setRankForm({ ...rankForm, points: parseInt(e.target.value) })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <button
+                                        onClick={handleAddRank}
+                                        className="bg-accent text-black font-bold rounded-lg p-3 flex items-center justify-center gap-2 hover:bg-accent/90"
+                                    >
+                                        <Plus className="w-5 h-5" /> Add
+                                    </button>
+                                </div>
+                            </div>
+                            <table className="w-full text-left">
+                                <thead className="bg-white/5 text-gray-400 font-bold uppercase text-xs">
+                                    <tr>
+                                        <th className="px-6 py-4">Rank</th>
+                                        <th className="px-6 py-4">Team</th>
+                                        <th className="px-6 py-4">Points</th>
+                                        <th className="px-6 py-4">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {rankings.map(rank => (
+                                        <tr key={rank.id}>
+                                            <td className="px-6 py-4 font-bold text-xl">#{rank.rank}</td>
+                                            <td className="px-6 py-4 font-bold">{rank.teamName}</td>
+                                            <td className="px-6 py-4 font-mono text-accent">{rank.points}</td>
+                                            <td className="px-6 py-4">
+                                                <button onClick={() => handleDeleteRank(rank.id)} className="text-red-500 hover:text-red-400">
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* FEATURED TOURNAMENTS TAB */}
+                    {!loading && activeTab === 'tournaments' && (
+                        <div>
+                            <div className="mb-8 p-4 bg-white/5 rounded-xl">
+                                <h3 className="text-lg font-bold mb-4">Add Featured Tournament</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Tournament Name"
+                                        value={tourneyForm.name}
+                                        onChange={e => setTourneyForm({ ...tourneyForm, name: e.target.value })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Date (e.g., Feb 25 - Mar 01)"
+                                        value={tourneyForm.date}
+                                        onChange={e => setTourneyForm({ ...tourneyForm, date: e.target.value })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Prize Pool (e.g., $10,000)"
+                                        value={tourneyForm.prizePool}
+                                        onChange={e => setTourneyForm({ ...tourneyForm, prizePool: e.target.value })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Image URL"
+                                        value={tourneyForm.imageUrl}
+                                        onChange={e => setTourneyForm({ ...tourneyForm, imageUrl: e.target.value })}
+                                        className="bg-black border border-white/20 rounded-lg p-3"
+                                    />
+                                    <button
+                                        onClick={handleAddTourney}
+                                        className="bg-accent text-black font-bold rounded-lg p-3 md:col-span-2 flex items-center justify-center gap-2 hover:bg-accent/90"
+                                    >
+                                        <Plus className="w-5 h-5" /> Add Tournament
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                {tournaments.map(t => (
+                                    <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            {t.imageUrl && <img src={t.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />}
+                                            <div>
+                                                <h4 className="font-bold">{t.name}</h4>
+                                                <p className="text-sm text-gray-400">{t.date} • {t.prizePool}</p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => handleDeleteTourney(t.id)} className="text-red-500 hover:text-red-400 p-2">
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ALL USER TOURNAMENTS TAB */}
+                    {!loading && activeTab === 'all_tournaments' && (
+                        <div>
+                            <div className="mb-6 p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                                <p className="text-purple-400 text-sm font-bold">⚡ Admin Power — You can manage and delete any tournament created by any organizer.</p>
+                            </div>
+                            {allTournaments.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">No user-created tournaments found.</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {allTournaments.map(t => (
+                                        <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between hover:bg-white/[0.08] transition">
+                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                {t.imageUrl ? (
+                                                    <img src={t.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                                                ) : (
+                                                    <div className="w-12 h-12 bg-neutral-800 rounded-lg flex items-center justify-center font-bold text-xs text-gray-500 shrink-0">
+                                                        {t.name?.substring(0, 2)}
+                                                    </div>
+                                                )}
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold truncate">{t.name}</h4>
+                                                    <p className="text-sm text-gray-400">
+                                                        {t.teams?.length || 0} teams • {t.status || 'draft'}
+                                                        {t.prizePool && <span className="text-accent ml-2">• {t.prizePool}</span>}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0 ml-4">
+                                                <button
+                                                    onClick={() => navigate(`/tournament/${t.id}`)}
+                                                    className="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition"
+                                                >
+                                                    View
+                                                </button>
+                                                <button onClick={() => handleDeleteUserTournament(t.id, t.name)} className="text-red-500 hover:text-red-400 p-2">
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* STATS TAB */}
+                    {!loading && activeTab === 'stats' && (
+                        <div>
+                            <div className="mb-8 p-4 bg-white/5 rounded-xl">
+                                <h3 className="text-lg font-bold mb-4">Site Statistics</h3>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-1">
+                                        <label className="block text-sm text-gray-400 mb-1">Active Events Display Count</label>
+                                        <input
+                                            type="number"
+                                            value={statsForm.activeEvents}
+                                            onChange={e => setStatsForm({ ...statsForm, activeEvents: parseInt(e.target.value) })}
+                                            className="w-full bg-black border border-white/20 rounded-lg p-3"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleUpdateStats}
+                                        className="bg-accent text-black font-bold rounded-lg px-8 py-3 flex items-center gap-2 hover:bg-accent/90 mt-6"
+                                    >
+                                        <Save className="w-5 h-5" /> Save Stats
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            </div>
+
+            {/* Toast */}
+            <Toast
+                message={toast.message}
+                type={toast.type}
+                isVisible={toast.visible}
+                onClose={() => setToast(prev => ({ ...prev, visible: false }))}
+            />
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={confirmModal.open}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                confirmLabel="Delete"
+                onConfirm={confirmModal.onConfirm}
+                onCancel={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+            />
+        </div>
+    );
+}

@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Oxanium', 'sans-serif';
+  --font-display: 'Russo One', 'sans-serif';
+  --color-primary: #1a1a1a;
+  --color-accent: #ffd700;
+
+  /* Ensure neutral colors are available if not default in v4 beta */
+  --color-neutral-950: #0a0a0a;
+  --color-neutral-900: #171717;
+}
+
+@layer base {
+  body {
+    @apply bg-neutral-950 text-white antialiased;
+  }
+}
+
+/* Animations for Toast & Modal */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shrink {
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
