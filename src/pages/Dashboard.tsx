@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Calendar, Trophy, ArrowRight } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import { useAuth } from '../lib/AuthContext';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export default function Dashboard() {

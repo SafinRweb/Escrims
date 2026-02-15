@@ -3,7 +3,7 @@ import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { db } from '../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { Trophy, TrendingUp, Minus } from 'lucide-react';
+
 
 export default function Rankings() {
     const [rankings, setRankings] = useState<any[]>([]);
