@@ -48,7 +48,7 @@ export default function RegisterOrganizer() {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
+        <div className="min-h-screen bg-transparent text-white flex flex-col">
             <Navbar />
             <main className="flex-1 flex items-center justify-center px-6 pt-16 py-12">
                 <div className="w-full max-w-md bg-neutral-900/50 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">

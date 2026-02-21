@@ -129,7 +129,7 @@ export default function CreateTournament() {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white">
+        <div className="min-h-screen bg-transparent text-white">
             <Navbar />
             <div className="container mx-auto px-6 py-24">
                 <div className="max-w-4xl mx-auto">

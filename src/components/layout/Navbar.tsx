@@ -1,14 +1,63 @@
 import { Trophy, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import { ADMIN_EMAILS } from '../../lib/admins';
 
+function setGoogleTranslateLanguage(langCode: string) {
+    // Set the googtrans cookie which Google Translate reads
+    const value = langCode === 'en' ? '' : `/en/${langCode}`;
+    document.cookie = `googtrans=${value}; path=/`;
+    document.cookie = `googtrans=${value}; path=/; domain=${window.location.hostname}`;
+
+    // If the Google Translate combo box exists, change its value
+    const select = document.querySelector('.goog-te-combo') as HTMLSelectElement | null;
+    if (select) {
+        select.value = langCode;
+        select.dispatchEvent(new Event('change'));
+    } else {
+        // Fallback: reload so the cookie takes effect
+        window.location.reload();
+    }
+}
+
+function getCurrentLang(): boolean {
+    // Check if currently in Bangla
+    const cookie = document.cookie.split(';').find(c => c.trim().startsWith('googtrans='));
+    if (cookie) {
+        return cookie.includes('/bn');
+    }
+    return false;
+}
+
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
-    const { currentUser, logout } = useAuth(); // Connect to Auth
+    const [isBangla, setIsBangla] = useState(false);
+    const { currentUser, logout } = useAuth();
 
     const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
+
+    useEffect(() => {
+        setIsBangla(getCurrentLang());
+    }, []);
+
+    const toggleLanguage = () => {
+        const newLang = isBangla ? 'en' : 'bn';
+        setIsBangla(!isBangla);
+        setGoogleTranslateLanguage(newLang);
+    };
+
+    const LangToggle = () => (
+        <button
+            onClick={toggleLanguage}
+            className="lang-toggle relative flex items-center w-[72px] h-8 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-all cursor-pointer overflow-hidden"
+            title={isBangla ? 'Switch to English' : 'বাংলায় পরিবর্তন করুন'}
+        >
+            <span className={`absolute left-1 top-1 w-[30px] h-6 rounded-full bg-accent transition-transform duration-300 ${isBangla ? 'translate-x-[34px]' : 'translate-x-0'}`} />
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${!isBangla ? 'text-black' : 'text-gray-400'}`}>EN</span>
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${isBangla ? 'text-black' : 'text-gray-400'}`}>বাং</span>
+        </button>
+    );
 
     return (
         <nav className="fixed w-full z-50 bg-neutral-950/80 backdrop-blur-md border-b border-white/10">
@@ -22,6 +71,7 @@ export default function Navbar() {
                     <Link to="/" className="hover:text-accent transition-colors">Home</Link>
                     <Link to="/ranking" className="hover:text-accent transition-colors">Rankings</Link>
                     <Link to="/news" className="hover:text-accent transition-colors">News</Link>
+                    <LangToggle />
                 </div>
 
                 <div className="hidden md:flex items-center gap-4">
@@ -51,9 +101,12 @@ export default function Navbar() {
                 </div>
 
                 {/* Mobile Hamburger */}
-                <button className="md:hidden text-white" onClick={() => setIsOpen(!isOpen)}>
-                    {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                </button>
+                <div className="md:hidden flex items-center gap-3">
+                    <LangToggle />
+                    <button className="text-white" onClick={() => setIsOpen(!isOpen)}>
+                        {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                    </button>
+                </div>
             </div>
 
             {/* Mobile Dropdown */}
@@ -80,6 +133,9 @@ export default function Navbar() {
                     )}
                 </div>
             )}
+
+            {/* Hidden Google Translate element - needed for the API to work */}
+            <div id="google_translate_element" style={{ display: 'none' }}></div>
         </nav>
     );
 }

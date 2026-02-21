@@ -22,7 +22,7 @@ export default function News() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans">
+        <div className="min-h-screen bg-transparent text-white flex flex-col font-sans">
             <Navbar />
             <main className="flex-1 pt-24 pb-12 container mx-auto px-6">
                 <header className="mb-12">

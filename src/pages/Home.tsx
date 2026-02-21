@@ -58,7 +58,7 @@ export default function Home() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans">
+        <div className="min-h-screen bg-transparent text-white flex flex-col font-sans">
             <Navbar />
             <main className="flex-1 pt-24 pb-12 px-6 container mx-auto">
                 <div className="max-w-4xl mx-auto text-center space-y-6 py-10 md:py-20">

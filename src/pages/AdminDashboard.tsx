@@ -256,7 +256,7 @@ export default function AdminDashboard() {
     ];
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans">
+        <div className="min-h-screen bg-transparent text-white flex flex-col font-sans">
             <Navbar />
             <div className="container mx-auto px-6 py-24">
                 <h1 className="text-2xl sm:text-4xl font-display font-bold mb-8">Admin Dashboard</h1>

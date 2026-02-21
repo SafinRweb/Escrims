@@ -253,7 +253,7 @@ export default function TournamentView() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
+            <div className="min-h-screen bg-transparent text-white flex flex-col">
                 <Navbar />
                 <div className="flex-1 flex items-center justify-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
@@ -264,7 +264,7 @@ export default function TournamentView() {
 
     if (!tournament) {
         return (
-            <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
+            <div className="min-h-screen bg-transparent text-white flex flex-col">
                 <Navbar />
                 <div className="flex-1 flex items-center justify-center">
                     <p>Tournament not found.</p>
@@ -321,7 +321,7 @@ export default function TournamentView() {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans">
+        <div className="min-h-screen bg-transparent text-white flex flex-col font-sans">
             <Navbar />
             <div className="container mx-auto px-6 py-24">
 

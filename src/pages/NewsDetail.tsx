@@ -32,12 +32,12 @@ export default function NewsDetail() {
         fetchNews();
     }, [id, navigate]);
 
-    if (loading) return <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">Loading...</div>;
+    if (loading) return <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Loading...</div>;
 
     if (!news) return null;
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white font-sans">
+        <div className="min-h-screen bg-transparent text-white font-sans">
             <Navbar />
             <div className="container mx-auto px-6 py-24">
                 <button

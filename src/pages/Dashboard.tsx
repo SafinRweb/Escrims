@@ -48,7 +48,7 @@ export default function Dashboard() {
     }, [currentUser]);
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white">
+        <div className="min-h-screen bg-transparent text-white">
             <Navbar />
             <div className="container mx-auto px-6 py-24">
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
