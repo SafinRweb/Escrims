@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { Trophy, Clock } from 'lucide-react';
+import { useAuth } from '../lib/AuthContext';
 
 export default function Home() {
     const [supportedGames, setSupportedGames] = useState<any[]>([]);
@@ -12,6 +13,7 @@ export default function Home() {
     const [upcomingTournaments, setUpcomingTournaments] = useState<any[]>([]);
     const [topTeams, setTopTeams] = useState<any[]>([]);
     const [stats, setStats] = useState({ activeEvents: 120 });
+    const { currentUser } = useAuth();
 
     useEffect(() => {
         const fetchContent = async () => {
@@ -59,13 +61,25 @@ export default function Home() {
         <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans">
             <Navbar />
             <main className="flex-1 pt-24 pb-12 px-6 container mx-auto">
-                <div className="max-w-4xl mx-auto text-center space-y-6 py-20">
-                    <h1 className="text-6xl md:text-8xl font-display font-bold tracking-tight uppercase">
-                        BANGLADESH'S PREMIER <br /> <span className="text-accent">TOURNAMENT</span> PLATFORM
+                <div className="max-w-4xl mx-auto text-center space-y-6 py-10 md:py-20">
+                    <h1 className="text-3xl sm:text-5xl md:text-8xl font-display font-bold tracking-tight uppercase break-words">
+                        BANGLADESH'S FIRST <br /> <span className="text-accent">TOURNAMENT</span> PLATFORM
                     </h1>
-                    <p className="text-2xl text-gray-400 max-w-2xl mx-auto font-sans font-light">
+                    <p className="text-lg sm:text-2xl text-gray-400 max-w-2xl mx-auto font-sans font-light">
                         Organize, compete, and track esports tournaments with professional-grade tools.
                     </p>
+
+                    {/* Mobile-only login CTA */}
+                    {!currentUser && (
+                        <div className="md:hidden mt-4">
+                            <Link
+                                to="/login"
+                                className="inline-block px-8 py-3 bg-accent text-black font-bold rounded-full hover:bg-accent/90 transition shadow-[0_0_20px_rgba(255,215,0,0.3)] text-lg"
+                            >
+                                Create Your Own Tournament
+                            </Link>
+                        </div>
+                    )}
                 </div>
 
                 {/* Bento Grid */}
@@ -73,7 +87,7 @@ export default function Home() {
 
                     {/* Featured Tournaments - Large Block */}
                     <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-6 md:col-span-2 md:row-span-2 hover:border-accent/30 transition-all group overflow-y-auto custom-scrollbar min-h-[300px]">
-                        <h3 className="text-3xl font-display font-bold mb-6 text-accent uppercase flex items-center gap-3">
+                        <h3 className="text-xl sm:text-3xl font-display font-bold mb-6 text-accent uppercase flex items-center gap-3">
                             <Trophy className="w-8 h-8" /> Featured Tournaments
                         </h3>
                         <div className="space-y-4">
@@ -81,18 +95,18 @@ export default function Home() {
                                 <p className="text-gray-500">No featured tournaments yet.</p>
                             ) : (
                                 featuredTournaments.map((t, i) => (
-                                    <Link to={`/tournament/${t.id}`} key={i} className="h-24 bg-white/5 rounded-xl p-4 flex items-center gap-4 group-hover:bg-white/10 transition-colors cursor-pointer hover:border border-transparent hover:border-accent/30">
+                                    <Link to={`/tournament/${t.id}`} key={i} className="bg-white/5 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 group-hover:bg-white/10 transition-colors cursor-pointer hover:border border-transparent hover:border-accent/30">
                                         {t.imageUrl ? (
-                                            <img src={t.imageUrl} className="w-16 h-16 rounded-lg object-cover" alt={t.name} />
+                                            <img src={t.imageUrl} className="w-full sm:w-16 h-32 sm:h-16 rounded-lg object-cover" alt={t.name} />
                                         ) : (
-                                            <div className="w-16 h-16 bg-neutral-800 rounded-lg flex items-center justify-center font-display text-gray-500 font-bold text-xs">{t.name?.substring(0, 2)}</div>
+                                            <div className="w-full sm:w-16 h-32 sm:h-16 bg-neutral-800 rounded-lg flex items-center justify-center font-display text-gray-500 font-bold text-lg sm:text-xs">{t.name?.substring(0, 2)}</div>
                                         )}
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-bold text-xl uppercase line-clamp-1">{t.name}</h4>
-                                            <p className="text-sm text-gray-400">{t.teams?.length || 0} Teams</p>
+                                        <div className="flex-1 min-w-0 w-full">
+                                            <h4 className="font-bold text-lg sm:text-xl uppercase line-clamp-2 sm:line-clamp-1">{t.name}</h4>
+                                            <p className="text-sm text-gray-400 mt-1">{t.teams?.length || 0} Teams</p>
                                         </div>
                                         {t.prizePool && (
-                                            <span className="text-accent font-bold text-sm bg-accent/10 px-3 py-1 rounded-lg shrink-0">💰 {t.prizePool}</span>
+                                            <span className="text-accent font-bold text-sm bg-accent/10 px-3 py-1.5 rounded-lg shrink-0">💰 {t.prizePool}</span>
                                         )}
                                     </Link>
                                 ))

@@ -45,7 +45,7 @@ export default function Navbar() {
                         </>
                     ) : (
                         <Link to="/login" className="px-8 py-2 bg-accent text-black font-bold rounded-full hover:bg-accent/90 transition shadow-[0_0_15px_rgba(255,215,0,0.3)]">
-                            Organizer Login
+                            Create Your Own Tournament
                         </Link>
                     )}
                 </div>
@@ -62,16 +62,21 @@ export default function Navbar() {
                     <Link to="/" className="block hover:text-accent transition-colors" onClick={() => setIsOpen(false)}>Home</Link>
                     <Link to="/ranking" className="block hover:text-accent transition-colors" onClick={() => setIsOpen(false)}>Rankings</Link>
                     <Link to="/news" className="block hover:text-accent transition-colors" onClick={() => setIsOpen(false)}>News</Link>
-                    {currentUser ? (
+                    {currentUser && (
                         <>
                             <Link to="/dashboard" className="block hover:text-accent transition-colors" onClick={() => setIsOpen(false)}>Dashboard</Link>
                             {isAdmin && (
                                 <Link to="/admin" className="block text-purple-400 hover:text-purple-300 transition-colors" onClick={() => setIsOpen(false)}>Admin</Link>
                             )}
-                            <button onClick={() => { logout(); setIsOpen(false); }} className="block text-gray-400 hover:text-white transition">Logout</button>
+                            <div className="pt-3 mt-3 border-t border-white/10">
+                                <button
+                                    onClick={() => { logout(); setIsOpen(false); }}
+                                    className="w-full text-left px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg hover:bg-red-500/20 transition font-bold text-sm"
+                                >
+                                    Logout
+                                </button>
+                            </div>
                         </>
-                    ) : (
-                        <Link to="/login" className="block text-accent font-bold" onClick={() => setIsOpen(false)}>Organizer Login</Link>
                     )}
                 </div>
             )}

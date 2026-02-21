@@ -239,7 +239,7 @@ export default function CreateTournament() {
                             <p className="text-gray-400 text-sm mb-6">Logo URL is optional — teams without logos will show initials.</p>
                             <div className="grid grid-cols-1 gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
                                 {teams.map((team, index) => (
-                                    <div key={index} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-3 hover:border-accent/30 transition group">
+                                    <div key={index} className="flex items-center gap-3 flex-wrap bg-white/5 border border-white/10 rounded-xl p-3 hover:border-accent/30 transition group">
                                         <span className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">{index + 1}</span>
                                         {team.logoUrl ? (
                                             <img src={team.logoUrl} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
@@ -252,14 +252,14 @@ export default function CreateTournament() {
                                             type="text"
                                             value={team.name}
                                             onChange={(e) => handleTeamNameChange(index, e.target.value)}
-                                            className="flex-1 bg-transparent border-none focus:ring-0 text-white placeholder-gray-700"
+                                            className="flex-1 min-w-0 bg-transparent border-none focus:ring-0 text-white placeholder-gray-700"
                                             placeholder={`Team Name ${index + 1}`}
                                         />
                                         <input
                                             type="text"
                                             value={team.logoUrl}
                                             onChange={(e) => handleTeamLogoChange(index, e.target.value)}
-                                            className="w-48 bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/50"
+                                            className="w-full sm:w-48 bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/50"
                                             placeholder="Logo URL (optional)"
                                         />
                                     </div>
@@ -298,47 +298,49 @@ export default function CreateTournament() {
 
                             <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
                                 {generatedMatches.map((match, idx) => (
-                                    <div key={match.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-4 hover:bg-white/[0.08] transition">
-                                        <span className="text-gray-500 font-mono text-sm w-8">#{idx + 1}</span>
+                                    <div key={match.id} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/[0.08] transition">
+                                        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+                                            <span className="text-gray-500 font-mono text-sm hidden sm:block w-8">#{idx + 1}</span>
 
-                                        {/* Team 1 */}
-                                        <div className="flex items-center gap-3 flex-1 justify-end">
-                                            <span className="font-bold text-white text-right truncate">{match.team1?.name}</span>
-                                            <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                {match.team1?.name?.substring(0, 2).toUpperCase()}
+                                            {/* Team 1 */}
+                                            <div className="flex items-center gap-3 sm:flex-1 sm:justify-end w-full sm:w-auto justify-center">
+                                                <span className="font-bold text-white sm:text-right truncate">{match.team1?.name}</span>
+                                                <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
+                                                    {match.team1?.name?.substring(0, 2).toUpperCase()}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <span className="text-accent font-bold text-lg px-3">VS</span>
+                                            <span className="text-accent font-bold text-lg px-3">VS</span>
 
-                                        {/* Team 2 */}
-                                        <div className="flex items-center gap-3 flex-1">
-                                            {match.team2 ? (
-                                                <>
-                                                    <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                        {match.team2.name.substring(0, 2).toUpperCase()}
-                                                    </div>
-                                                    <span className="font-bold text-white truncate">{match.team2.name}</span>
-                                                </>
-                                            ) : (
-                                                <span className="text-gray-500 italic">BYE</span>
-                                            )}
+                                            {/* Team 2 */}
+                                            <div className="flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center">
+                                                {match.team2 ? (
+                                                    <>
+                                                        <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
+                                                            {match.team2.name.substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <span className="font-bold text-white truncate">{match.team2.name}</span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-gray-500 italic">BYE</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
 
-                            <div className="flex justify-between items-center mt-8 pt-6 border-t border-white/10">
+                            <div className="flex flex-col sm:flex-row sm:justify-between items-center gap-4 mt-8 pt-6 border-t border-white/10">
                                 <button
                                     onClick={() => setStep(2)}
-                                    className="text-gray-400 hover:text-white transition font-bold"
+                                    className="text-gray-400 hover:text-white transition font-bold order-2 sm:order-1"
                                 >
                                     ← Back to Teams
                                 </button>
                                 <button
                                     onClick={handleSubmitForApproval}
                                     disabled={isSubmitting}
-                                    className="bg-accent text-black font-bold px-8 py-3 rounded-xl hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(255,215,0,0.3)] flex items-center gap-2"
+                                    className="bg-accent text-black font-bold px-8 py-3 rounded-xl hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(255,215,0,0.3)] flex items-center gap-2 w-full sm:w-auto justify-center order-1 sm:order-2"
                                 >
                                     {isSubmitting ? 'Submitting...' : 'Request Approval'} <ArrowRight className="w-5 h-5" />
                                 </button>
@@ -374,7 +376,7 @@ export default function CreateTournament() {
                                 </a>
                             </div>
 
-                            <div className="flex gap-4 justify-center mt-6">
+                            <div className="flex gap-4 flex-wrap justify-center mt-6">
                                 <button
                                     onClick={() => navigate(`/tournament/${createdTournamentId}`)}
                                     className="bg-accent text-black font-bold px-8 py-3 rounded-xl hover:bg-accent/90 transition"

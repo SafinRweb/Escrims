@@ -52,7 +52,7 @@ export default function NewsDetail() {
                         <img
                             src={news.imageUrl}
                             alt={news.title}
-                            className="w-full h-[400px] object-cover rounded-2xl mb-8 border border-white/10"
+                            className="w-full h-[200px] sm:h-[300px] md:h-[400px] object-cover rounded-2xl mb-8 border border-white/10"
                         />
                     )}
 

@@ -31,7 +31,7 @@ export default function Login() {
             <Navbar />
             <main className="flex-1 flex items-center justify-center px-6 pt-16">
                 <div className="w-full max-w-md bg-neutral-900/50 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
-                    <h2 className="text-3xl font-bold mb-6 text-center">Organizer Login</h2>
+                    <h2 className="text-3xl font-bold mb-6 text-center">Login</h2>
 
                     {error && (
                         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3 text-red-400 text-sm">

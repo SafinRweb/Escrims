@@ -82,15 +82,31 @@ export default function TournamentView() {
     const saveMatch = async () => {
         if (!tournament || !id || !editingMatchId) return;
 
-        // Warn if date is in the past
-        if (editTime && new Date(editTime) < new Date()) {
-            showToast("Warning: The match date you entered is in the past.", "warning");
-        }
+        // Validate date+time: if a date is entered but time is missing (or vice versa)
+        if (editTime) {
+            const parts = editTime.split('T');
+            const datePart = parts[0] || '';
+            const timePart = parts[1] || '';
 
-        // Warn if date is invalid
-        if (editTime && isNaN(new Date(editTime).getTime())) {
-            showToast("Invalid date. Please enter a valid date.", "error");
-            return;
+            if (datePart && !timePart) {
+                showToast("Please set the time of the match along with the date.", "error");
+                return;
+            }
+            if (timePart && !datePart) {
+                showToast("Please set the date of the match along with the time.", "error");
+                return;
+            }
+
+            // Warn if date is invalid
+            if (isNaN(new Date(editTime).getTime())) {
+                showToast("Invalid date. Please enter a valid date.", "error");
+                return;
+            }
+
+            // Warn if date is in the past
+            if (new Date(editTime) < new Date()) {
+                showToast("Warning: The match date you entered is in the past.", "warning");
+            }
         }
 
         try {
@@ -432,7 +448,7 @@ export default function TournamentView() {
                             </div>
                             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
                                 {editTeamData.map((team, i) => (
-                                    <div key={team.id} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                                    <div key={team.id} className="flex items-center gap-3 flex-wrap bg-white/5 border border-white/10 rounded-xl p-3">
                                         <span className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">{i + 1}</span>
                                         {team.logoUrl ? (
                                             <img src={team.logoUrl} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
@@ -444,13 +460,13 @@ export default function TournamentView() {
                                         <input
                                             value={team.name}
                                             onChange={e => { const d = [...editTeamData]; d[i] = { ...d[i], name: e.target.value }; setEditTeamData(d); }}
-                                            className="flex-1 bg-transparent border-none focus:ring-0 text-white placeholder-gray-600"
+                                            className="flex-1 min-w-0 bg-transparent border-none focus:ring-0 text-white placeholder-gray-600"
                                             placeholder="Team Name"
                                         />
                                         <input
                                             value={team.logoUrl}
                                             onChange={e => { const d = [...editTeamData]; d[i] = { ...d[i], logoUrl: e.target.value }; setEditTeamData(d); }}
-                                            className="w-48 bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/50"
+                                            className="w-full sm:w-48 bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/50"
                                             placeholder="Logo URL (optional)"
                                         />
                                     </div>
@@ -469,12 +485,12 @@ export default function TournamentView() {
                         <table className="w-full text-left">
                             <thead className="bg-white/5 text-gray-400 uppercase text-xs font-bold">
                                 <tr>
-                                    <th className="px-6 py-4 w-12">#</th>
-                                    <th className="px-6 py-4">Team</th>
-                                    <th className="px-4 py-4 text-center">Kills</th>
-                                    <th className="px-4 py-4 text-center">Deaths</th>
-                                    <th className="px-4 py-4 text-center">KD</th>
-                                    <th className="px-4 py-4 text-right">Points</th>
+                                    <th className="px-3 md:px-6 py-4 w-12">#</th>
+                                    <th className="px-3 md:px-6 py-4">Team</th>
+                                    <th className="px-2 md:px-4 py-4 text-center">Kills</th>
+                                    <th className="px-2 md:px-4 py-4 text-center">Deaths</th>
+                                    <th className="px-2 md:px-4 py-4 text-center">KD</th>
+                                    <th className="px-2 md:px-4 py-4 text-right">Points</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
@@ -490,12 +506,12 @@ export default function TournamentView() {
                                     .sort((a, b) => b.pts - a.pts || b.kills - a.kills)
                                     .map((t, rank) => (
                                         <tr key={t.idx} className="hover:bg-white/5 transition-colors">
-                                            <td className="px-6 py-4">
+                                            <td className="px-3 md:px-6 py-4">
                                                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${rank === 0 && t.pts > 0 ? 'bg-accent text-black' : 'bg-white/10 text-gray-400'}`}>
                                                     {rank + 1}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-3 md:px-6 py-4">
                                                 <div className="flex items-center gap-3">
                                                     {t.logoUrl ? (
                                                         <img src={t.logoUrl} alt={t.teamName} className="w-8 h-8 rounded-full object-cover shrink-0" />
@@ -507,16 +523,16 @@ export default function TournamentView() {
                                                     <span className="font-bold">{t.teamName}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-4 text-center">
+                                            <td className="px-2 md:px-4 py-4 text-center">
                                                 <span className="font-mono font-bold text-green-400">{t.kills}</span>
                                             </td>
-                                            <td className="px-4 py-4 text-center">
+                                            <td className="px-2 md:px-4 py-4 text-center">
                                                 <span className="font-mono font-bold text-red-400">{t.deaths}</span>
                                             </td>
-                                            <td className="px-4 py-4 text-center">
+                                            <td className="px-2 md:px-4 py-4 text-center">
                                                 <span className="font-mono font-bold text-gray-300">{t.kd}</span>
                                             </td>
-                                            <td className="px-4 py-4 text-right">
+                                            <td className="px-2 md:px-4 py-4 text-right">
                                                 <span className="font-mono font-bold text-accent">{t.pts}</span>
                                             </td>
                                         </tr>
@@ -542,37 +558,35 @@ export default function TournamentView() {
                                     {editingMatchId === match.id ? (
                                         /* ---- EDIT MODE ---- */
                                         <div className="space-y-4">
-                                            <div className="flex items-center gap-4 flex-wrap">
-                                                {/* Team 1 */}
-                                                <div className="flex items-center gap-2 flex-1 min-w-[120px]">
+                                            {/* Teams & Scores — card layout for mobile */}
+                                            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+                                                {/* Team 1 + Score */}
+                                                <div className="flex items-center gap-3 w-full sm:flex-1 justify-center sm:justify-end">
                                                     <div className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
                                                         {match.team1?.name?.substring(0, 2).toUpperCase()}
                                                     </div>
                                                     <span className="font-bold truncate">{match.team1?.name}</span>
-                                                </div>
-
-                                                {/* Score inputs */}
-                                                <div className="flex items-center gap-2">
                                                     <input
                                                         type="number"
                                                         min="0"
                                                         value={editScore1}
                                                         onChange={(e) => setEditScore1(parseInt(e.target.value) || 0)}
-                                                        className="w-16 bg-black border border-white/20 rounded-lg px-3 py-2 text-center font-mono font-bold text-white"
+                                                        className="w-14 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-center font-mono font-bold text-white text-lg"
                                                     />
-                                                    <span className="text-gray-600 font-bold">-</span>
+                                                </div>
+
+                                                <span className="text-gray-600 font-bold text-lg">VS</span>
+
+                                                {/* Team 2 + Score */}
+                                                <div className="flex items-center gap-3 w-full sm:flex-1 justify-center sm:justify-start">
                                                     <input
                                                         type="number"
                                                         min="0"
                                                         value={editScore2}
                                                         onChange={(e) => setEditScore2(parseInt(e.target.value) || 0)}
-                                                        className="w-16 bg-black border border-white/20 rounded-lg px-3 py-2 text-center font-mono font-bold text-white"
+                                                        className="w-14 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-center font-mono font-bold text-white text-lg"
                                                     />
-                                                </div>
-
-                                                {/* Team 2 */}
-                                                <div className="flex items-center gap-2 flex-1 min-w-[120px] justify-end">
-                                                    <span className="font-bold truncate text-right">{match.team2?.name || 'BYE'}</span>
+                                                    <span className="font-bold truncate">{match.team2?.name || 'BYE'}</span>
                                                     <div className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
                                                         {match.team2?.name?.substring(0, 2).toUpperCase() || '—'}
                                                     </div>
@@ -581,27 +595,27 @@ export default function TournamentView() {
 
                                             {/* Time + Save */}
                                             <div className="space-y-2">
-                                                <p className="text-xs text-gray-500">📅 Set the match date and time. Use the picker to select day, month, year, and time. Format: DD/MM/YYYY.</p>
-                                                <div className="flex items-center gap-4 flex-wrap">
-                                                    <div className="flex items-center gap-2 flex-1">
-                                                        <Clock className="w-4 h-4 text-gray-500" />
+                                                <p className="text-xs text-gray-500">📅 Set the match date and time. Both date and time are required.</p>
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <Clock className="w-4 h-4 text-gray-500 shrink-0" />
                                                         <input
                                                             type="datetime-local"
                                                             value={editTime}
                                                             onChange={(e) => setEditTime(e.target.value)}
-                                                            className="bg-black border border-white/20 rounded-lg px-3 py-2 text-sm text-white flex-1"
+                                                            className="bg-black border border-white/20 rounded-lg px-3 py-2 text-sm text-white w-full min-w-0"
                                                         />
                                                     </div>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-2 shrink-0">
                                                         <button
                                                             onClick={() => setEditingMatchId(null)}
-                                                            className="px-4 py-2 text-gray-400 hover:text-white transition text-sm"
+                                                            className="px-4 py-2 text-gray-400 hover:text-white transition text-sm flex-1 sm:flex-none"
                                                         >
                                                             Cancel
                                                         </button>
                                                         <button
                                                             onClick={saveMatch}
-                                                            className="bg-accent text-black font-bold px-5 py-2 rounded-lg hover:bg-accent/90 transition flex items-center gap-2 text-sm"
+                                                            className="bg-accent text-black font-bold px-5 py-2 rounded-lg hover:bg-accent/90 transition flex items-center justify-center gap-2 text-sm flex-1 sm:flex-none"
                                                         >
                                                             <Save className="w-4 h-4" /> Save
                                                         </button>
@@ -612,62 +626,66 @@ export default function TournamentView() {
                                         </div>
                                     ) : (
                                         /* ---- VIEW MODE ---- */
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-gray-500 font-mono text-sm w-8">#{idx + 1}</span>
+                                        <div>
+                                            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+                                                <span className="text-gray-500 font-mono text-sm hidden sm:block w-8">#{idx + 1}</span>
 
-                                            {/* Team 1 */}
-                                            <div className="flex items-center gap-3 flex-1 justify-end">
-                                                <span className="font-bold text-white text-right truncate">{match.team1?.name}</span>
-                                                {match.team1?.logoUrl ? (
-                                                    <img src={match.team1.logoUrl} alt={match.team1.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
-                                                ) : (
-                                                    <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                        {match.team1?.name?.substring(0, 2).toUpperCase()}
-                                                    </div>
+                                                {/* Team 1 */}
+                                                <div className="flex items-center gap-3 sm:flex-1 sm:justify-end w-full sm:w-auto justify-center">
+                                                    <span className="font-bold text-white sm:text-right truncate">{match.team1?.name}</span>
+                                                    {match.team1?.logoUrl ? (
+                                                        <img src={match.team1.logoUrl} alt={match.team1.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                                                    ) : (
+                                                        <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
+                                                            {match.team1?.name?.substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* VS / TBA */}
+                                                <div className="px-4 text-center min-w-[60px]">
+                                                    {match.startTime && isDatePassed(match.startTime) && !match.score1 && !match.score2 ? (
+                                                        <span className="text-yellow-500 font-bold text-sm">TBA</span>
+                                                    ) : (
+                                                        <span className="text-accent font-bold text-lg">VS</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Team 2 */}
+                                                <div className="flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center">
+                                                    {match.team2 ? (
+                                                        <>
+                                                            {match.team2.logoUrl ? (
+                                                                <img src={match.team2.logoUrl} alt={match.team2.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                                                            ) : (
+                                                                <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
+                                                                    {match.team2.name.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <span className="font-bold text-white truncate">{match.team2.name}</span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-gray-500 italic">BYE</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Edit button — owner only after approval */}
+                                                {isOwner && isApproved && (
+                                                    <button
+                                                        onClick={() => startEditMatch(match)}
+                                                        className="p-2 hover:bg-white/10 rounded-lg transition text-gray-400 hover:text-white shrink-0"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
                                                 )}
                                             </div>
 
-                                            {/* VS / TBA */}
-                                            <div className="px-4 text-center min-w-[60px]">
-                                                {match.startTime && isDatePassed(match.startTime) && !match.score1 && !match.score2 ? (
-                                                    <span className="text-yellow-500 font-bold text-sm">TBA</span>
-                                                ) : (
-                                                    <span className="text-accent font-bold text-lg">VS</span>
-                                                )}
-                                            </div>
-
-                                            {/* Team 2 */}
-                                            <div className="flex items-center gap-3 flex-1">
-                                                {match.team2 ? (
-                                                    <>
-                                                        {match.team2.logoUrl ? (
-                                                            <img src={match.team2.logoUrl} alt={match.team2.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
-                                                        ) : (
-                                                            <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                                {match.team2.name.substring(0, 2).toUpperCase()}
-                                                            </div>
-                                                        )}
-                                                        <span className="font-bold text-white truncate">{match.team2.name}</span>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-gray-500 italic">BYE</span>
-                                                )}
-                                            </div>
-
-                                            {/* Schedule */}
-                                            <div className="text-sm text-gray-400 shrink-0 hidden md:flex items-center gap-2">
-                                                <Clock className="w-4 h-4" />
-                                                {match.startTime ? formatDate(match.startTime) : 'TBD'}
-                                            </div>
-
-                                            {/* Edit button — owner only after approval */}
-                                            {isOwner && isApproved && (
-                                                <button
-                                                    onClick={() => startEditMatch(match)}
-                                                    className="p-2 hover:bg-white/10 rounded-lg transition text-gray-400 hover:text-white shrink-0"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
+                                            {/* Schedule — shown below on mobile */}
+                                            {match.startTime && (
+                                                <div className="text-sm text-gray-400 mt-2 flex items-center gap-2 justify-center sm:justify-start">
+                                                    <Clock className="w-4 h-4" />
+                                                    {formatDate(match.startTime)}
+                                                </div>
                                             )}
                                         </div>
                                     )}
@@ -693,12 +711,12 @@ export default function TournamentView() {
                                 const team2Won = match.winnerId === match.team2?.id;
                                 return (
                                     <div key={match.id} className="bg-neutral-900/50 border border-white/10 rounded-xl p-5">
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-gray-500 font-mono text-sm w-8">#{idx + 1}</span>
+                                        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+                                            <span className="text-gray-500 font-mono text-sm hidden sm:block w-8">#{idx + 1}</span>
 
                                             {/* Team 1 */}
-                                            <div className={`flex items-center gap-3 flex-1 justify-end ${team1Won ? 'text-green-400' : 'text-gray-400'}`}>
-                                                <span className={`font-bold text-right truncate ${team1Won ? '' : 'line-through opacity-50'}`}>{match.team1?.name}</span>
+                                            <div className={`flex items-center gap-3 sm:flex-1 sm:justify-end w-full sm:w-auto justify-center ${team1Won ? 'text-green-400' : 'text-gray-400'}`}>
+                                                <span className={`font-bold sm:text-right truncate ${team1Won ? '' : 'line-through opacity-50'}`}>{match.team1?.name}</span>
                                                 {match.team1?.logoUrl ? (
                                                     <img src={match.team1.logoUrl} alt={match.team1.name} className={`w-10 h-10 rounded-full object-cover shrink-0 ${team1Won ? 'ring-2 ring-green-500' : 'opacity-50'}`} />
                                                 ) : (
@@ -718,7 +736,7 @@ export default function TournamentView() {
                                             </div>
 
                                             {/* Team 2 */}
-                                            <div className={`flex items-center gap-3 flex-1 ${team2Won ? 'text-green-400' : 'text-gray-400'}`}>
+                                            <div className={`flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center ${team2Won ? 'text-green-400' : 'text-gray-400'}`}>
                                                 {match.team2?.logoUrl ? (
                                                     <img src={match.team2.logoUrl} alt={match.team2.name} className={`w-10 h-10 rounded-full object-cover shrink-0 ${team2Won ? 'ring-2 ring-green-500' : 'opacity-50'}`} />
                                                 ) : (
@@ -728,13 +746,15 @@ export default function TournamentView() {
                                                 )}
                                                 <span className={`font-bold truncate ${team2Won ? '' : 'line-through opacity-50'}`}>{match.team2?.name || 'BYE'}</span>
                                             </div>
-
-                                            {/* Date */}
-                                            <div className="text-sm text-gray-500 shrink-0 hidden md:flex items-center gap-2">
-                                                <Clock className="w-4 h-4" />
-                                                {match.startTime ? formatDate(match.startTime) : '—'}
-                                            </div>
                                         </div>
+
+                                        {/* Date — shown below on mobile */}
+                                        {match.startTime && (
+                                            <div className="text-sm text-gray-500 mt-2 flex items-center gap-2 justify-center sm:justify-start">
+                                                <Clock className="w-4 h-4" />
+                                                {formatDate(match.startTime)}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

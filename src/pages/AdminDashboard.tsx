@@ -47,7 +47,7 @@ export default function AdminDashboard() {
 
     useEffect(() => {
         if (!currentUser) {
-            navigate('/admin-login');
+            navigate('/login');
         } else if (!isAdmin) {
             navigate('/');
         }
@@ -259,7 +259,7 @@ export default function AdminDashboard() {
         <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans">
             <Navbar />
             <div className="container mx-auto px-6 py-24">
-                <h1 className="text-4xl font-display font-bold mb-8">Admin Dashboard</h1>
+                <h1 className="text-2xl sm:text-4xl font-display font-bold mb-8">Admin Dashboard</h1>
 
                 {/* Tabs */}
                 <div className="flex gap-4 border-b border-white/10 mb-8 overflow-x-auto pb-2">
@@ -275,7 +275,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Content Area */}
-                <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-6">
+                <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-3 sm:p-6">
 
                     {loading && (
                         <div className="text-center py-12 text-gray-500">Loading...</div>
@@ -316,7 +316,7 @@ export default function AdminDashboard() {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3 shrink-0">
+                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
                                                 <button
                                                     onClick={() => navigate(`/tournament/${t.id}`)}
                                                     className="text-sm text-gray-400 hover:text-white px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition"
@@ -413,7 +413,7 @@ export default function AdminDashboard() {
                                         onChange={e => setNewsForm({ ...newsForm, content: e.target.value })}
                                         className="w-full bg-black border border-white/20 rounded-lg p-3 h-48 font-mono text-sm"
                                     />
-                                    <div className="flex gap-4">
+                                    <div className="flex flex-col sm:flex-row gap-4">
                                         <input
                                             type="text"
                                             placeholder="Image URL (Banner)"
@@ -432,7 +432,7 @@ export default function AdminDashboard() {
                             </div>
                             <div className="space-y-4">
                                 {news.map(item => (
-                                    <div key={item.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex gap-4">
+                                    <div key={item.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row gap-4">
                                         {item.imageUrl && <img src={item.imageUrl} alt="" className="w-24 h-24 object-cover rounded-lg" />}
                                         <div className="flex-1">
                                             <h4 className="font-bold text-xl mb-1">{item.title}</h4>
@@ -485,30 +485,32 @@ export default function AdminDashboard() {
                                     </button>
                                 </div>
                             </div>
-                            <table className="w-full text-left">
-                                <thead className="bg-white/5 text-gray-400 font-bold uppercase text-xs">
-                                    <tr>
-                                        <th className="px-6 py-4">Rank</th>
-                                        <th className="px-6 py-4">Team</th>
-                                        <th className="px-6 py-4">Points</th>
-                                        <th className="px-6 py-4">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {rankings.map(rank => (
-                                        <tr key={rank.id}>
-                                            <td className="px-6 py-4 font-bold text-xl">#{rank.rank}</td>
-                                            <td className="px-6 py-4 font-bold">{rank.teamName}</td>
-                                            <td className="px-6 py-4 font-mono text-accent">{rank.points}</td>
-                                            <td className="px-6 py-4">
-                                                <button onClick={() => handleDeleteRank(rank.id)} className="text-red-500 hover:text-red-400">
-                                                    <Trash2 className="w-5 h-5" />
-                                                </button>
-                                            </td>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-white/5 text-gray-400 font-bold uppercase text-xs">
+                                        <tr>
+                                            <th className="px-3 md:px-6 py-4">Rank</th>
+                                            <th className="px-3 md:px-6 py-4">Team</th>
+                                            <th className="px-3 md:px-6 py-4">Points</th>
+                                            <th className="px-3 md:px-6 py-4">Action</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {rankings.map(rank => (
+                                            <tr key={rank.id}>
+                                                <td className="px-3 md:px-6 py-4 font-bold text-xl">#{rank.rank}</td>
+                                                <td className="px-3 md:px-6 py-4 font-bold">{rank.teamName}</td>
+                                                <td className="px-3 md:px-6 py-4 font-mono text-accent">{rank.points}</td>
+                                                <td className="px-3 md:px-6 py-4">
+                                                    <button onClick={() => handleDeleteRank(rank.id)} className="text-red-500 hover:text-red-400">
+                                                        <Trash2 className="w-5 h-5" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
 
@@ -556,7 +558,7 @@ export default function AdminDashboard() {
                             </div>
                             <div className="space-y-4">
                                 {tournaments.map(t => (
-                                    <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                                    <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                         <div className="flex items-center gap-4">
                                             {t.imageUrl && <img src={t.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />}
                                             <div>
@@ -584,7 +586,7 @@ export default function AdminDashboard() {
                             ) : (
                                 <div className="space-y-3">
                                     {allTournaments.map(t => (
-                                        <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between hover:bg-white/[0.08] transition">
+                                        <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-white/[0.08] transition">
                                             <div className="flex items-center gap-4 flex-1 min-w-0">
                                                 {t.imageUrl ? (
                                                     <img src={t.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
@@ -624,7 +626,7 @@ export default function AdminDashboard() {
                         <div>
                             <div className="mb-8 p-4 bg-white/5 rounded-xl">
                                 <h3 className="text-lg font-bold mb-4">Site Statistics</h3>
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                                     <div className="flex-1">
                                         <label className="block text-sm text-gray-400 mb-1">Active Events Display Count</label>
                                         <input

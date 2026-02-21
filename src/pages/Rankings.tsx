@@ -26,20 +26,20 @@ export default function Rankings() {
                     <p className="text-gray-400">Official Leaderboard - Season 2026</p>
                 </header>
 
-                <div className="max-w-4xl mx-auto bg-neutral-900/50 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="max-w-4xl mx-auto bg-neutral-900/50 border border-white/10 rounded-2xl overflow-hidden overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-white/5 text-accent font-bold uppercase text-sm tracking-wider">
                             <tr>
-                                <th className="px-6 py-6">Rank</th>
-                                <th className="px-6 py-6">Team</th>
-                                <th className="px-6 py-6 text-right">Points</th>
+                                <th className="px-3 md:px-6 py-6">Rank</th>
+                                <th className="px-3 md:px-6 py-6">Team</th>
+                                <th className="px-3 md:px-6 py-6 text-right">Points</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {rankings.map((team) => (
                                 <tr key={team.rank} className="hover:bg-white/5 transition-colors">
-                                    <td className="px-6 py-4 font-bold text-2xl font-mono text-gray-500">#{team.rank}</td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-3 md:px-6 py-4 font-bold text-2xl font-mono text-gray-500">#{team.rank}</td>
+                                    <td className="px-3 md:px-6 py-4">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center font-bold text-sm">
                                                 {team.teamName ? team.teamName.substring(0, 2) : 'NA'}
@@ -47,7 +47,7 @@ export default function Rankings() {
                                             <span className="font-bold text-lg">{team.teamName || 'Unknown Team'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-right font-mono text-xl text-accent">{team.points}</td>
+                                    <td className="px-3 md:px-6 py-4 text-right font-mono text-xl text-accent">{team.points}</td>
                                 </tr>
                             ))}
                         </tbody>
