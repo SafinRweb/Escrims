@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -13,7 +13,7 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 export default function AdminDashboard() {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'approvals' | 'games' | 'news' | 'rankings' | 'tournaments' | 'all_tournaments' | 'stats'>('approvals');
+    const [activeTab, setActiveTab] = useState<'approvals' | 'games' | 'news' | 'rankings' | 'tournaments' | 'all_tournaments'>('approvals');
 
     // State for CMS Content
     const [games, setGames] = useState<any[]>([]);
@@ -29,7 +29,6 @@ export default function AdminDashboard() {
     const [newsForm, setNewsForm] = useState({ title: '', summary: '', content: '', imageUrl: '' });
     const [rankForm, setRankForm] = useState({ teamName: '', points: 0, rank: 0, trend: 'stable' });
     const [tourneyForm, setTourneyForm] = useState({ name: '', date: '', prizePool: '', imageUrl: '', status: 'upcoming' });
-    const [statsForm, setStatsForm] = useState({ activeEvents: 0 });
 
     // Toast
     const [toast, setToast] = useState<{ message: string; type: ToastType; visible: boolean }>({
@@ -77,12 +76,6 @@ export default function AdminDashboard() {
                 } else if (activeTab === 'all_tournaments') {
                     const snap = await getDocs(collection(db, 'tournaments'));
                     setAllTournaments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                } else if (activeTab === 'stats') {
-                    const snap = await getDocs(collection(db, 'cms_settings'));
-                    if (!snap.empty) {
-                        const data = snap.docs[0].data();
-                        setStatsForm({ activeEvents: data.activeEventsCount || 0 });
-                    }
                 }
             } catch (error) {
                 console.error("Error fetching CMS content:", error);
@@ -228,31 +221,13 @@ export default function AdminDashboard() {
         });
     };
 
-    const handleUpdateStats = async () => {
-        try {
-            const settingsRef = collection(db, 'cms_settings');
-            const snap = await getDocs(settingsRef);
-
-            if (snap.empty) {
-                await addDoc(settingsRef, { activeEventsCount: statsForm.activeEvents });
-            } else {
-                await updateDoc(doc(db, 'cms_settings', snap.docs[0].id), { activeEventsCount: statsForm.activeEvents });
-            }
-            showToast("Stats updated successfully!", "success");
-        } catch (e) {
-            console.error("Error updating stats:", e);
-            showToast("Failed to update stats.", "error");
-        }
-    };
-
     const tabList = [
         { key: 'approvals', label: '🔔 Approvals' },
         { key: 'games', label: 'Games' },
         { key: 'news', label: 'News' },
         { key: 'rankings', label: 'Rankings' },
         { key: 'tournaments', label: 'Featured' },
-        { key: 'all_tournaments', label: 'All Tournaments' },
-        { key: 'stats', label: 'Stats' },
+        { key: 'all_tournaments', label: 'All Tournaments' }
     ];
 
     return (
@@ -621,32 +596,7 @@ export default function AdminDashboard() {
                         </div>
                     )}
 
-                    {/* STATS TAB */}
-                    {!loading && activeTab === 'stats' && (
-                        <div>
-                            <div className="mb-8 p-4 bg-white/5 rounded-xl">
-                                <h3 className="text-lg font-bold mb-4">Site Statistics</h3>
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                                    <div className="flex-1">
-                                        <label className="block text-sm text-gray-400 mb-1">Active Events Display Count</label>
-                                        <input
-                                            type="number"
-                                            value={statsForm.activeEvents}
-                                            onChange={e => setStatsForm({ ...statsForm, activeEvents: parseInt(e.target.value) })}
-                                            className="w-full bg-black border border-white/20 rounded-lg p-3"
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={handleUpdateStats}
-                                        className="bg-accent text-black font-bold rounded-lg px-8 py-3 flex items-center gap-2 hover:bg-accent/90 mt-6"
-                                    >
-                                        <Save className="w-5 h-5" /> Save Stats
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
+                    {/* ALL USER TOURNAMENTS TAB */}
                 </div>
             </div>
 

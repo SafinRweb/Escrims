@@ -53,7 +53,10 @@ export default function Dashboard() {
             <div className="container mx-auto px-6 py-24">
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
                     <div>
-                        <h1 className="text-3xl font-bold font-display">Organizer Dashboard</h1>
+                        <h2 className="text-5xl font-bold font-display text-accent mb-2">
+                            Welcome, {currentUser?.displayName || 'Organizer'}!
+                        </h2>
+                        <h1 className="text-2xl font-bold font-display">Organizer Dashboard</h1>
                         <p className="text-gray-400 mt-2">Manage your tournaments and settings</p>
                     </div>
                     <Link to="/create-tournament">

@@ -5,7 +5,7 @@ import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
 export default function RegisterOrganizer() {
@@ -39,6 +39,15 @@ export default function RegisterOrganizer() {
                 organizationName: formData.orgName,
                 createdAt: serverTimestamp()
             });
+
+            // Increment Global Platform Stats Counter
+            try {
+                await setDoc(doc(db, "platform_stats", "main"), {
+                    totalOrganizers: increment(1)
+                }, { merge: true });
+            } catch (statError) {
+                console.warn("Could not update global stats counter:", statError);
+            }
 
             navigate('/dashboard');
         } catch (err: any) {

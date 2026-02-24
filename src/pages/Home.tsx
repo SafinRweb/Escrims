@@ -3,7 +3,7 @@ import Footer from '../components/layout/Footer';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, query, limit } from 'firebase/firestore';
 import { Trophy, Clock } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
@@ -12,7 +12,8 @@ export default function Home() {
     const [featuredTournaments, setFeaturedTournaments] = useState<any[]>([]);
     const [upcomingTournaments, setUpcomingTournaments] = useState<any[]>([]);
     const [topTeams, setTopTeams] = useState<any[]>([]);
-    const [stats, setStats] = useState({ activeEvents: 120 });
+    const [activeOrganizersCount, setActiveOrganizersCount] = useState(0);
+    const [loading, setLoading] = useState(true);
     const { currentUser } = useAuth();
 
     useEffect(() => {
@@ -42,20 +43,49 @@ export default function Home() {
                 const ranksData = ranksSnap.docs.map(d => d.data()).sort((a: any, b: any) => a.rank - b.rank).slice(0, 5);
                 setTopTeams(ranksData);
 
-                // Fetch Stats
-                const statsSnap = await getDocs(collection(db, 'cms_settings'));
-                if (!statsSnap.empty) {
-                    const data = statsSnap.docs[0].data();
-                    if (data.activeEventsCount) {
-                        setStats({ activeEvents: data.activeEventsCount });
+                // Fetch Active Organizers Count
+                try {
+                    // Try reading the public decentralized counter
+                    const statsSnap = await getDoc(doc(db, 'platform_stats', 'main'));
+                    if (statsSnap.exists() && statsSnap.data()?.totalOrganizers) {
+                        setActiveOrganizersCount(statsSnap.data().totalOrganizers);
+                    } else {
+                        throw new Error("Stats document missing or counter not initialized");
                     }
+                } catch (statError) {
+                    console.warn("Could not fetch global organizers count, falling back to active tournament organizers.");
+                    const uniqueOrganizers = new Set(allTourneys.map((t: any) => t.organizerId).filter(Boolean));
+                    setActiveOrganizersCount(uniqueOrganizers.size || 0);
                 }
             } catch (error) {
                 console.error("Error fetching home content:", error);
+            } finally {
+                setLoading(false);
             }
         };
         fetchContent();
     }, []);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center font-sans">
+                <div className="relative flex flex-col items-center">
+                    {/* Glowing background effect */}
+                    <div className="absolute inset-0 bg-accent/20 blur-3xl rounded-full w-32 h-32 animate-pulse mx-auto opacity-50"></div>
+
+                    {/* Animated Icon */}
+                    <div className="relative bg-black p-4 rounded-full border border-accent/30 shadow-[0_0_30px_rgba(255,215,0,0.3)] mb-6 animate-bounce">
+                        <Trophy className="w-12 h-12 text-accent" />
+                    </div>
+
+                    {/* Text content */}
+                    <h2 className="text-2xl md:text-4xl font-display font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-accent to-yellow-600 animate-pulse">
+                        Loading Arena
+                    </h2>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-transparent text-white flex flex-col font-sans">
@@ -114,10 +144,10 @@ export default function Home() {
                         </div>
                     </div>
 
-                    {/* Active Events Stat */}
+                    {/* Active Organizers Stat */}
                     <div className="bg-accent text-black rounded-2xl p-6 flex flex-col justify-center items-center md:col-span-1 shadow-[0_0_20px_rgba(255,215,0,0.2)]">
-                        <span className="text-6xl font-display font-bold">{stats.activeEvents}+</span>
-                        <span className="text-xl font-bold uppercase tracking-widest opacity-80 text-center">Active Events</span>
+                        <span className="text-6xl font-display font-bold">{activeOrganizersCount}+</span>
+                        <span className="text-xl font-bold uppercase tracking-widest opacity-80 text-center">Active Organizers</span>
                     </div>
 
                     {/* Supported Games (Dynamic) */}

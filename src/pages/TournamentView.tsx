@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Save, Trophy, Trash2, Download, Edit2, X, Users, ExternalLink, Tv } from 'lucide-react';
+import { Clock, Save, Trophy, Trash2, Download, Edit2, X, Users, Tv } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import type { Tournament, Match, Team } from '../lib/tournamentLogic';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { ADMIN_EMAILS } from '../lib/admins';
 import Toast from '../components/ui/Toast';
@@ -32,8 +33,15 @@ export default function TournamentView() {
     // Tournament info editing state
     const [editingInfo, setEditingInfo] = useState(false);
     const [editDescription, setEditDescription] = useState('');
+    const [editSponsor, setEditSponsor] = useState('');
     const [editImageUrl, setEditImageUrl] = useState('');
     const [editStreamLink, setEditStreamLink] = useState('');
+    const [editingStream, setEditingStream] = useState(false);
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+    const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+    const [showAllCompleted, setShowAllCompleted] = useState(false);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+    const [uploadingTeamId, setUploadingTeamId] = useState<string | null>(null);
 
     // Toast state
     const [toast, setToast] = useState<{ message: string; type: ToastType; visible: boolean }>({
@@ -188,8 +196,8 @@ export default function TournamentView() {
     const startEditInfo = () => {
         if (!tournament) return;
         setEditDescription((tournament as any).description || '');
+        setEditSponsor((tournament as any).sponsor || '');
         setEditImageUrl((tournament as any).imageUrl || '');
-        setEditStreamLink((tournament as any).streamLink || '');
         setEditingInfo(true);
     };
 
@@ -199,16 +207,120 @@ export default function TournamentView() {
             const docRef = doc(db, "tournaments", id);
             await updateDoc(docRef, {
                 description: editDescription,
+                sponsor: editSponsor,
                 imageUrl: editImageUrl,
-                streamLink: editStreamLink,
             });
-            setTournament({ ...tournament, description: editDescription, imageUrl: editImageUrl, streamLink: editStreamLink } as any);
+            setTournament({ ...tournament, description: editDescription, sponsor: editSponsor, imageUrl: editImageUrl } as any);
             setEditingInfo(false);
             showToast("Tournament info updated!", "success");
         } catch (error) {
             console.error("Error updating info:", error);
             showToast("Failed to update tournament info.", "error");
         }
+    };
+
+    const saveStreamEdit = async () => {
+        if (!tournament || !id) return;
+        try {
+            const docRef = doc(db, "tournaments", id);
+            await updateDoc(docRef, { streamLink: editStreamLink });
+            setTournament({ ...tournament, streamLink: editStreamLink } as any);
+            setEditingStream(false);
+            showToast("Stream link updated!", "success");
+        } catch (error) {
+            console.error("Error updating stream link:", error);
+            showToast("Failed to update stream link.", "error");
+        }
+    };
+
+    const handleTournamentLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) {
+            setEditImageUrl('');
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            showToast("File is too large. Please select an image under 2MB.", "error");
+            e.target.value = ''; // Clear the input
+            return;
+        }
+
+        setIsUploadingLogo(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `images/tournament-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+            const storageRef = ref(storage, fileName);
+
+            await uploadBytes(storageRef, file);
+            const downloadUrl = await getDownloadURL(storageRef);
+            setEditImageUrl(downloadUrl);
+            showToast("Tournament logo uploaded!", "success");
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                showToast("Upload cancelled.", "info");
+            } else {
+                console.error("Error uploading logo:", error);
+                showToast("Failed to upload logo. Try again.", "error");
+            }
+        } finally {
+            setIsUploadingLogo(false);
+        }
+    };
+
+    const cancelTournamentLogoUpload = () => {
+        setIsUploadingLogo(false);
+        showToast("Upload cancelled.", "info");
+        // Using uncontrolled inputs, the best way to clear without ref is via user interaction, but we can reset the URL state if desired.
+    };
+
+    const handleTeamLogoUpload = async (index: number, teamId: string, teamName: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) {
+            // Unset the image URL if they cleared the field
+            const newTeamData = [...editTeamData];
+            newTeamData[index] = { ...newTeamData[index], logoUrl: '' };
+            setEditTeamData(newTeamData);
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            showToast("File is too large. Please select an image under 2MB.", "error");
+            e.target.value = ''; // Clear the input
+            return;
+        }
+
+        const safeName = (teamName || teamId).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+        setUploadingTeamId(teamId);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `images/team-${safeName}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+            const storageRef = ref(storage, fileName);
+
+            await uploadBytes(storageRef, file);
+            const downloadUrl = await getDownloadURL(storageRef);
+
+            const newTeamData = [...editTeamData];
+            newTeamData[index] = { ...newTeamData[index], logoUrl: downloadUrl };
+            setEditTeamData(newTeamData);
+
+            showToast(`Team logo uploaded for ${teamName || 'Team'}!`, "success");
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                showToast("Upload cancelled.", "info");
+            } else {
+                console.error("Error uploading team logo:", error);
+                showToast(`Failed to upload logo for ${teamName || 'Team'}.`, "error");
+            }
+        } finally {
+            setUploadingTeamId(null);
+        }
+    };
+
+    const cancelTeamLogoUpload = () => {
+        setUploadingTeamId(null);
+        showToast("Upload cancelled.", "info");
     };
 
     const handleDelete = () => {
@@ -341,9 +453,26 @@ export default function TournamentView() {
                         <h1 className="text-2xl md:text-3xl font-bold tracking-wide mb-4 text-white">
                             {tournament.name}
                         </h1>
-                        <p className="text-gray-400 text-lg mb-6 max-w-2xl leading-relaxed">
-                            {(tournament as any).description || "No description provided."}
-                        </p>
+                        <div className="mb-6 max-w-2xl">
+                            <div className={`text-gray-400 text-lg leading-relaxed ${isDescriptionExpanded ? '' : 'line-clamp-3'}`}>
+                                {(tournament as any).description || "No description provided."}
+                            </div>
+                            {((tournament as any).description || '').length > 150 && (
+                                <button
+                                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                                    className="text-accent text-sm font-bold mt-2 hover:underline"
+                                >
+                                    {isDescriptionExpanded ? 'Read Less' : 'Read More'}
+                                </button>
+                            )}
+
+                            {/* Sponsor Block */}
+                            {(tournament as any).sponsor && (
+                                <p className="text-gray-500 text-md mt-4 font-bold italic">
+                                    Sponsored by <span className="text-accent">{(tournament as any).sponsor}</span>
+                                </p>
+                            )}
+                        </div>
 
                         <div className="flex flex-wrap gap-4 text-sm font-bold uppercase tracking-wider text-gray-500">
                             <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-lg">
@@ -356,16 +485,6 @@ export default function TournamentView() {
                                 <div className="flex items-center gap-2 bg-accent/10 px-4 py-2 rounded-lg text-accent">
                                     💰 {(tournament as any).prizePool}
                                 </div>
-                            )}
-                            {(tournament as any).streamLink && (
-                                <a
-                                    href={(tournament as any).streamLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 bg-purple-500/10 px-4 py-2 rounded-lg text-purple-400 hover:bg-purple-500/20 transition"
-                                >
-                                    <Tv className="w-4 h-4" /> Live Stream <ExternalLink className="w-3 h-3" />
-                                </a>
                             )}
                         </div>
                     </div>
@@ -412,35 +531,125 @@ export default function TournamentView() {
                                     placeholder="Tournament description..."
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Sponsor Name (Optional)</label>
+                                <input
+                                    type="text"
+                                    value={editSponsor}
+                                    onChange={(e) => setEditSponsor(e.target.value)}
+                                    className="w-full bg-black border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                    placeholder="e.g. Nexus Gaming"
+                                />
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Logo URL</label>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Tournament Logo</label>
                                     <input
-                                        type="text"
-                                        value={editImageUrl}
-                                        onChange={(e) => setEditImageUrl(e.target.value)}
-                                        className="w-full bg-black border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-accent text-sm"
-                                        placeholder="https://example.com/logo.png"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleTournamentLogoUpload}
+                                        disabled={isUploadingLogo}
+                                        className="w-full bg-black border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-accent text-sm file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-accent file:text-black hover:file:bg-accent/90 cursor-pointer disabled:opacity-50"
                                     />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-2"><Tv className="w-4 h-4 text-purple-400" /> Livestream Link</label>
-                                    <input
-                                        type="text"
-                                        value={editStreamLink}
-                                        onChange={(e) => setEditStreamLink(e.target.value)}
-                                        className="w-full bg-black border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-accent text-sm"
-                                        placeholder="https://youtube.com/live/... or https://twitch.tv/..."
-                                    />
+                                    {isUploadingLogo && (
+                                        <div className="mt-2 flex items-center justify-between bg-white/5 border border-white/10 rounded-lg p-2">
+                                            <span className="text-xs text-accent animate-pulse">Uploading logo...</span>
+                                            <button onClick={cancelTournamentLogoUpload} className="text-xs text-red-400 hover:text-red-300">Cancel</button>
+                                        </div>
+                                    )}
+                                    {editImageUrl && !isUploadingLogo && (
+                                        <div className="mt-2 flex items-center justify-between">
+                                            <span className="text-xs text-green-400">✓ Logo ready to save</span>
+                                            <button onClick={() => setEditImageUrl('')} className="text-xs text-red-400 hover:text-red-300 w-fit bg-red-500/10 px-2 py-1 rounded border border-red-500/20 transition">Remove Logo</button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                         <div className="flex justify-end gap-3 mt-4">
                             <button onClick={() => setEditingInfo(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancel</button>
-                            <button onClick={saveInfoEdits} className="bg-accent text-black font-bold px-6 py-2 rounded-lg hover:bg-accent/90 flex items-center gap-2 text-sm">
+                            <button onClick={saveInfoEdits} disabled={isUploadingLogo} className="bg-accent text-black font-bold px-6 py-2 rounded-lg hover:bg-accent/90 flex items-center gap-2 text-sm disabled:opacity-50">
                                 <Save className="w-4 h-4" /> Save Changes
                             </button>
                         </div>
+                    </div>
+                )}
+
+                {/* ============ LIVE STREAM PLAYER ============ */}
+                {((tournament as any).streamLink || canManage) && (
+                    <div className="mb-12 animate-fade-in">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-2xl font-bold font-display uppercase text-gray-300 flex items-center gap-3">
+                                <Tv className="w-6 h-6 text-purple-500" /> Live Stream
+                            </h3>
+                            {canManage && !editingStream && (
+                                <button onClick={() => { setEditStreamLink((tournament as any).streamLink || ''); setEditingStream(true); }} className="text-sm text-gray-400 hover:text-white flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/10 transition">
+                                    <Edit2 className="w-4 h-4" /> Edit Stream
+                                </button>
+                            )}
+                        </div>
+
+                        {editingStream && (
+                            <div className="bg-neutral-900/80 border border-purple-500/30 rounded-2xl p-6 mb-6 animate-fade-in">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-lg font-bold flex items-center gap-2"><Tv className="w-5 h-5 text-purple-500" /> Edit Live Stream</h4>
+                                    <button onClick={() => setEditingStream(false)} className="p-1 hover:bg-white/10 rounded-lg"><X className="w-5 h-5" /></button>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-2">YouTube Livestream Link</label>
+                                    <input
+                                        type="text"
+                                        value={editStreamLink}
+                                        onChange={(e) => setEditStreamLink(e.target.value)}
+                                        className="w-full bg-black border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500"
+                                        placeholder="https://youtube.com/live/..."
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-3 mt-4">
+                                    <button onClick={() => setEditingStream(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancel</button>
+                                    <button onClick={saveStreamEdit} className="bg-purple-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-purple-500 flex items-center gap-2 text-sm">
+                                        <Save className="w-4 h-4" /> Save Link
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {!editingStream && (tournament as any).streamLink && (
+                            <div className="bg-neutral-900/50 border border-white/10 rounded-2xl overflow-hidden aspect-video shadow-[0_0_30px_rgba(168,85,247,0.15)]">
+                                {(() => {
+                                    const link = (tournament as any).streamLink;
+                                    let embedUrl = link;
+
+                                    // Basic YouTube URL parsing
+                                    if (link.includes('youtube.com/watch?v=')) {
+                                        const videoId = new URL(link).searchParams.get('v');
+                                        if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                                    } else if (link.includes('youtu.be/')) {
+                                        const videoId = link.split('youtu.be/')[1]?.split('?')[0];
+                                        if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                                    } else if (link.includes('youtube.com/live/')) {
+                                        const videoId = link.split('youtube.com/live/')[1]?.split('?')[0];
+                                        if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                                    }
+
+                                    return (
+                                        <iframe
+                                            className="w-full h-full"
+                                            src={embedUrl}
+                                            title={`${tournament.name} Live Stream`}
+                                            frameBorder="0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowFullScreen
+                                        ></iframe>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                        {!((tournament as any).streamLink) && !editingStream && canManage && (
+                            <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-12 text-center text-gray-500 border-dashed">
+                                No live stream configured yet. Click "Edit Stream" to add one.
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -481,18 +690,32 @@ export default function TournamentView() {
                                             className="flex-1 min-w-0 bg-transparent border-none focus:ring-0 text-white placeholder-gray-600"
                                             placeholder="Team Name"
                                         />
-                                        <input
-                                            value={team.logoUrl}
-                                            onChange={e => { const d = [...editTeamData]; d[i] = { ...d[i], logoUrl: e.target.value }; setEditTeamData(d); }}
-                                            className="w-full sm:w-48 bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/50"
-                                            placeholder="Logo URL (optional)"
-                                        />
+                                        <div className="w-full sm:w-48 relative">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => handleTeamLogoUpload(i, team.id, team.name, e)}
+                                                disabled={uploadingTeamId === team.id}
+                                                className="w-full bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-accent/50 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 disabled:opacity-50 cursor-pointer"
+                                            />
+                                            {uploadingTeamId === team.id && (
+                                                <div className="absolute inset-0 bg-neutral-800/90 rounded-lg flex items-center justify-between px-3">
+                                                    <span className="text-xs text-accent font-bold animate-pulse">Uploading...</span>
+                                                    <button onClick={cancelTeamLogoUpload} className="text-xs text-red-400 hover:text-red-300 font-bold z-10 relative">✕</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {team.logoUrl && (
+                                            <button onClick={() => { const d = [...editTeamData]; d[i] = { ...d[i], logoUrl: '' }; setEditTeamData(d); }} className="p-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition border border-red-500/20 mt-2 sm:mt-0" title="Remove logo">
+                                                Remove
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>
                             <div className="flex justify-end gap-3 mt-4">
                                 <button onClick={() => setEditingTeams(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancel</button>
-                                <button onClick={saveTeamEdits} className="bg-accent text-black font-bold px-6 py-2 rounded-lg hover:bg-accent/90 flex items-center gap-2 text-sm">
+                                <button onClick={saveTeamEdits} disabled={uploadingTeamId !== null} className="bg-accent text-black font-bold px-6 py-2 rounded-lg hover:bg-accent/90 flex items-center gap-2 text-sm disabled:opacity-50">
                                     <Save className="w-4 h-4" /> Save Changes
                                 </button>
                             </div>
@@ -573,75 +796,81 @@ export default function TournamentView() {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {upcomingMatches.map((match, idx) => (
+                            {(showAllUpcoming ? upcomingMatches : upcomingMatches.slice(0, 5)).map((match, idx) => (
                                 <div key={match.id} className="bg-neutral-900/50 border border-white/10 rounded-xl p-5">
                                     {editingMatchId === match.id ? (
                                         /* ---- EDIT MODE ---- */
-                                        <div className="space-y-4">
-                                            {/* Teams & Scores — card layout for mobile */}
-                                            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-                                                {/* Team 1 + Score */}
-                                                <div className="flex items-center gap-3 w-full sm:flex-1 justify-center sm:justify-end">
-                                                    <div className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                        {match.team1?.name?.substring(0, 2).toUpperCase()}
+                                        <div className="space-y-4 relative">
+                                            <div className="flex flex-col lg:flex-row items-center gap-6 bg-black/40 p-4 rounded-xl border border-white/5">
+
+                                                {/* Team 1 Side */}
+                                                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end flex-1 gap-4 w-full">
+                                                    <span className="font-bold text-lg text-white truncate order-2 sm:order-1">{match.team1?.name}</span>
+                                                    <div className="flex items-center gap-4 order-1 sm:order-2">
+                                                        <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
+                                                            {match.team1?.name?.substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            value={editScore1}
+                                                            onChange={(e) => setEditScore1(parseInt(e.target.value) || 0)}
+                                                            className="w-16 bg-black border border-white/20 rounded-lg px-2 py-2 text-center font-mono font-bold text-white text-xl focus:border-accent outline-none"
+                                                        />
                                                     </div>
-                                                    <span className="font-bold truncate">{match.team1?.name}</span>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={editScore1}
-                                                        onChange={(e) => setEditScore1(parseInt(e.target.value) || 0)}
-                                                        className="w-14 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-center font-mono font-bold text-white text-lg"
-                                                    />
                                                 </div>
 
-                                                <span className="text-gray-600 font-bold text-lg">VS</span>
-
-                                                {/* Team 2 + Score */}
-                                                <div className="flex items-center gap-3 w-full sm:flex-1 justify-center sm:justify-start">
+                                                {/* Center Side: Date & Time Picker */}
+                                                <div className="flex flex-col items-center gap-2 shrink-0 w-full lg:w-auto bg-neutral-900 border border-white/10 px-6 py-4 rounded-xl shadow-lg relative z-10">
+                                                    <span className="text-accent font-bold tracking-widest text-xs uppercase mb-1 flex items-center gap-2">
+                                                        <Clock className="w-3 h-3" /> Setup Match
+                                                    </span>
                                                     <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={editScore2}
-                                                        onChange={(e) => setEditScore2(parseInt(e.target.value) || 0)}
-                                                        className="w-14 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-center font-mono font-bold text-white text-lg"
+                                                        type="datetime-local"
+                                                        value={editTime}
+                                                        onChange={(e) => setEditTime(e.target.value)}
+                                                        className="bg-black border border-white/20 hover:border-white/40 focus:border-accent rounded-lg px-3 py-2 text-sm text-white min-w-[200px] outline-none transition"
                                                     />
-                                                    <span className="font-bold truncate">{match.team2?.name || 'BYE'}</span>
-                                                    <div className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                        {match.team2?.name?.substring(0, 2).toUpperCase() || '—'}
+                                                    <span className="text-gray-500 font-bold text-sm mt-1">VS</span>
+                                                </div>
+
+                                                {/* Team 2 Side */}
+                                                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start flex-1 gap-4 w-full">
+                                                    <div className="flex items-center gap-4">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            value={editScore2}
+                                                            onChange={(e) => setEditScore2(parseInt(e.target.value) || 0)}
+                                                            className="w-16 bg-black border border-white/20 rounded-lg px-2 py-2 text-center font-mono font-bold text-white text-xl focus:border-accent outline-none"
+                                                        />
+                                                        <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
+                                                            {match.team2?.name?.substring(0, 2).toUpperCase() || '—'}
+                                                        </div>
                                                     </div>
+                                                    <span className="font-bold text-lg text-white truncate">{match.team2?.name || 'BYE'}</span>
                                                 </div>
                                             </div>
 
-                                            {/* Time + Save */}
-                                            <div className="space-y-2">
-                                                <p className="text-xs text-gray-500">📅 Set the match date and time. Both date and time are required.</p>
-                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                        <Clock className="w-4 h-4 text-gray-500 shrink-0" />
-                                                        <input
-                                                            type="datetime-local"
-                                                            value={editTime}
-                                                            onChange={(e) => setEditTime(e.target.value)}
-                                                            className="bg-black border border-white/20 rounded-lg px-3 py-2 text-sm text-white w-full min-w-0"
-                                                        />
-                                                    </div>
-                                                    <div className="flex gap-2 shrink-0">
-                                                        <button
-                                                            onClick={() => setEditingMatchId(null)}
-                                                            className="px-4 py-2 text-gray-400 hover:text-white transition text-sm flex-1 sm:flex-none"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                        <button
-                                                            onClick={saveMatch}
-                                                            className="bg-accent text-black font-bold px-5 py-2 rounded-lg hover:bg-accent/90 transition flex items-center justify-center gap-2 text-sm flex-1 sm:flex-none"
-                                                        >
-                                                            <Save className="w-4 h-4" /> Save
-                                                        </button>
-                                                    </div>
+                                            {/* Action Control Strip */}
+                                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
+                                                <p className="text-xs text-yellow-500/70 text-center sm:text-left">
+                                                    ⚠️ Enter a score & save to mark as <strong className="text-white">Completed</strong>. Leave scores at <strong className="text-white">0-0</strong> to keep it upcoming.
+                                                </p>
+                                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                    <button
+                                                        onClick={() => setEditingMatchId(null)}
+                                                        className="px-6 py-2 border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition font-bold text-sm w-full sm:w-auto"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={saveMatch}
+                                                        className="bg-accent text-black font-bold px-8 py-2 rounded-lg hover:bg-accent/90 transition flex items-center justify-center gap-2 text-sm shadow-[0_0_15px_rgba(202,254,72,0.3)] w-full sm:w-auto"
+                                                    >
+                                                        <Save className="w-4 h-4" /> Save
+                                                    </button>
                                                 </div>
-                                                <p className="text-xs text-yellow-500/70">⚠️ Enter the score and save to mark a match as completed. Leave score at 0-0 to keep it upcoming.</p>
                                             </div>
                                         </div>
                                     ) : (
@@ -662,17 +891,27 @@ export default function TournamentView() {
                                                     )}
                                                 </div>
 
-                                                {/* VS / TBA */}
-                                                <div className="px-4 text-center min-w-[60px]">
+                                                {/* Center column: Date & VS */}
+                                                <div className="px-4 text-center min-w-[100px] flex flex-col items-center justify-center">
+                                                    {match.startTime && (
+                                                        <span className="text-xs text-gray-500 mb-1 font-mono tracking-widest hidden sm:block whitespace-nowrap">
+                                                            {formatDate(match.startTime)}
+                                                        </span>
+                                                    )}
                                                     {match.startTime && isDatePassed(match.startTime) && !match.score1 && !match.score2 ? (
                                                         <span className="text-yellow-500 font-bold text-sm">TBA</span>
                                                     ) : (
-                                                        <span className="text-accent font-bold text-lg">VS</span>
+                                                        <span className="text-accent font-bold text-[1.5rem] leading-none">VS</span>
+                                                    )}
+                                                    {match.startTime && (
+                                                        <span className="text-xs text-gray-500 mt-1 font-mono tracking-widest sm:hidden">
+                                                            {formatDate(match.startTime)}
+                                                        </span>
                                                     )}
                                                 </div>
 
                                                 {/* Team 2 */}
-                                                <div className="flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center">
+                                                <div className="flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center sm:justify-start">
                                                     {match.team2 ? (
                                                         <>
                                                             {match.team2.logoUrl ? (
@@ -700,17 +939,18 @@ export default function TournamentView() {
                                                 )}
                                             </div>
 
-                                            {/* Schedule — shown below on mobile */}
-                                            {match.startTime && (
-                                                <div className="text-sm text-gray-400 mt-2 flex items-center gap-2 justify-center sm:justify-start">
-                                                    <Clock className="w-4 h-4" />
-                                                    {formatDate(match.startTime)}
-                                                </div>
-                                            )}
                                         </div>
                                     )}
                                 </div>
                             ))}
+                            {upcomingMatches.length > 5 && (
+                                <button
+                                    onClick={() => setShowAllUpcoming(!showAllUpcoming)}
+                                    className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-gray-400 hover:text-white transition"
+                                >
+                                    {showAllUpcoming ? 'Show Less' : `Show More (${upcomingMatches.length - 5})`}
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -726,7 +966,7 @@ export default function TournamentView() {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {completedMatches.map((match, idx) => {
+                            {(showAllCompleted ? completedMatches : completedMatches.slice(0, 5)).map((match, idx) => {
                                 const team1Won = match.winnerId === match.team1?.id;
                                 const team2Won = match.winnerId === match.team2?.id;
                                 return (
@@ -746,17 +986,27 @@ export default function TournamentView() {
                                                 )}
                                             </div>
 
-                                            {/* Score */}
-                                            <div className="px-4 text-center min-w-[80px]">
-                                                <span className="font-mono font-bold text-xl">
+                                            {/* Center Column: Date & Score */}
+                                            <div className="px-4 text-center min-w-[100px] flex flex-col items-center justify-center">
+                                                {match.startTime && (
+                                                    <span className="text-xs text-gray-500 mb-1 font-mono tracking-widest hidden sm:block whitespace-nowrap opacity-70">
+                                                        {formatDate(match.startTime)}
+                                                    </span>
+                                                )}
+                                                <div className="font-mono font-bold text-2xl leading-none">
                                                     <span className={team1Won ? 'text-green-400' : 'text-gray-500'}>{match.score1}</span>
-                                                    <span className="text-gray-600 mx-1">-</span>
+                                                    <span className="text-gray-600 mx-2">-</span>
                                                     <span className={team2Won ? 'text-green-400' : 'text-gray-500'}>{match.score2}</span>
-                                                </span>
+                                                </div>
+                                                {match.startTime && (
+                                                    <span className="text-xs text-gray-500 mt-1 font-mono tracking-widest sm:hidden opacity-70">
+                                                        {formatDate(match.startTime)}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Team 2 */}
-                                            <div className={`flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center ${team2Won ? 'text-green-400' : 'text-gray-400'}`}>
+                                            <div className={`flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center sm:justify-start ${team2Won ? 'text-green-400' : 'text-gray-400'}`}>
                                                 {match.team2?.logoUrl ? (
                                                     <img src={match.team2.logoUrl} alt={match.team2.name} className={`w-10 h-10 rounded-full object-cover shrink-0 ${team2Won ? 'ring-2 ring-green-500' : 'opacity-50'}`} />
                                                 ) : (
@@ -778,6 +1028,14 @@ export default function TournamentView() {
                                     </div>
                                 );
                             })}
+                            {completedMatches.length > 5 && (
+                                <button
+                                    onClick={() => setShowAllCompleted(!showAllCompleted)}
+                                    className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-bold uppercase tracking-widest text-gray-400 hover:text-white transition"
+                                >
+                                    {showAllCompleted ? 'Show Less' : `Show More (${completedMatches.length - 5})`}
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

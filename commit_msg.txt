@@ -1,0 +1,14 @@
+v1.0.0: Escrims Platform Major Update
+
+Changes in this version:
+- Migrated Tournament and Team Logo fields from text URLs to native File Uploaders backed by Firebase Storage.
+- Implemented 'Cancel' and 'Remove Logo' tools with loading states.
+- Added a global Loading Screen to the homepage to boost presentation.
+- Added Sponsor Name metadata to Tournaments (Create and Edit).
+- Implemented text clamping (Read More / Show Less) on Tournament descriptions.
+- Replaced static string Live Stream links with an embedded YouTube player.
+- Added pagination (Show More limit: 5) to Upcoming and Completed Matches.
+- Merged external Mobile Legends Esports RSS News with internal Firebase News feeds.
+- Personalized the Organizer Dashboard with the user's Display Name.
+- Fixed the Active Organizer tracking metric using a secure decentralized Firebase platform counter.
+- Restructured and centered the Match Editing and Viewing UI for perfect desktop symmetry.

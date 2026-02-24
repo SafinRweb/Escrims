@@ -5,7 +5,8 @@ import Navbar from '../components/layout/Navbar';
 import { shuffleTeams, generateMatches } from '../lib/tournamentLogic';
 import type { Team, Match } from '../lib/tournamentLogic';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import Toast from '../components/ui/Toast';
 import type { ToastType } from '../components/ui/Toast';
@@ -15,6 +16,7 @@ export default function CreateTournament() {
     const [createdTournamentId, setCreatedTournamentId] = useState('');
     const [tournamentName, setTournamentName] = useState('');
     const [description, setDescription] = useState('');
+    const [sponsor, setSponsor] = useState('');
     const [imageUrl, setImageUrl] = useState('');
     const [prizePool, setPrizePool] = useState('');
     const [teamCount, setTeamCount] = useState<number>(16);
@@ -22,6 +24,8 @@ export default function CreateTournament() {
     const [shuffledTeams, setShuffledTeams] = useState<Team[]>([]);
     const [generatedMatches, setGeneratedMatches] = useState<Match[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+    const [uploadingTeamIndex, setUploadingTeamIndex] = useState<number | null>(null);
     const navigate = useNavigate();
     const { currentUser } = useAuth();
 
@@ -58,6 +62,89 @@ export default function CreateTournament() {
     const initializeTeams = () => {
         setTeams(Array(teamCount).fill({ name: '', logoUrl: '' }));
         setStep(2);
+    };
+
+    const handleTournamentLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            showToast("File is too large. Please select an image under 2MB.", "error");
+            e.target.value = ''; // Clear the input
+            return;
+        }
+
+        setIsUploadingLogo(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `images/tournament-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+            const storageRef = ref(storage, fileName);
+
+            // Create a cancellable promise
+            const uploadPromise = uploadBytes(storageRef, file);
+
+            await uploadPromise;
+
+            const downloadUrl = await getDownloadURL(storageRef);
+            setImageUrl(downloadUrl);
+            showToast("Tournament logo uploaded!", "success");
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                showToast("Upload cancelled.", "info");
+            } else {
+                console.error("Error uploading logo:", error);
+                showToast("Failed to upload logo. Try again.", "error");
+            }
+        } finally {
+            setIsUploadingLogo(false);
+        }
+    };
+
+    const cancelTournamentLogoUpload = () => {
+        setIsUploadingLogo(false);
+        showToast("Upload cancelled.", "info");
+        // We reset the input field by using a ref or just letting the user re-select.
+        // In React, controlled file inputs are tricky, so we rely on the user picking again.
+    };
+
+    const handleTeamLogoUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            showToast("File is too large. Please select an image under 2MB.", "error");
+            e.target.value = ''; // Clear the input
+            return;
+        }
+
+        const originalTeamName = teams[index].name || `team${index}`;
+        const safeName = originalTeamName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+        setUploadingTeamIndex(index);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `images/team-${safeName}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+            const storageRef = ref(storage, fileName);
+
+            await uploadBytes(storageRef, file);
+            const downloadUrl = await getDownloadURL(storageRef);
+            handleTeamLogoChange(index, downloadUrl);
+            showToast(`Team logo uploaded for ${teams[index].name || 'Team ' + (index + 1)}!`, "success");
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                showToast("Upload cancelled.", "info");
+            } else {
+                console.error("Error uploading team logo:", error);
+                showToast(`Failed to upload logo for ${teams[index].name || 'Team ' + (index + 1)}.`, "error");
+            }
+        } finally {
+            setUploadingTeamIndex(null);
+        }
+    };
+
+    const cancelTeamLogoUpload = () => {
+        setUploadingTeamIndex(null);
+        showToast("Upload cancelled.", "info");
     };
 
     // Step 2 → Step 3: Shuffle teams and generate bracket preview
@@ -102,6 +189,7 @@ export default function CreateTournament() {
                 organizerId: currentUser.uid,
                 name: tournamentName,
                 description,
+                sponsor, // Added sponsor
                 imageUrl,
                 prizePool,
                 prizePoolValue: parsePrizePool(prizePool),
@@ -177,19 +265,48 @@ export default function CreateTournament() {
                                     />
                                 </div>
 
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Sponsor Name (Optional)</label>
+                                    <div className="relative">
+                                        <Trophy className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                        <input
+                                            type="text"
+                                            value={sponsor}
+                                            onChange={(e) => setSponsor(e.target.value)}
+                                            className="w-full bg-neutral-950 border border-white/10 rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                                            placeholder="e.g. Nexus Gaming"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-2">Logo URL (Optional)</label>
+                                        <label className="block text-sm font-medium text-gray-400 mb-2">Tournament Logo (Optional)</label>
                                         <div className="relative">
                                             <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                                             <input
-                                                type="text"
-                                                value={imageUrl}
-                                                onChange={(e) => setImageUrl(e.target.value)}
-                                                className="w-full bg-neutral-950 border border-white/10 rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
-                                                placeholder="https://example.com/logo.png"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleTournamentLogoUpload}
+                                                disabled={isUploadingLogo}
+                                                className="w-full bg-neutral-950 border border-white/10 text-sm text-gray-400 rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-accent file:text-black hover:file:bg-accent/90 cursor-pointer disabled:opacity-50"
                                             />
                                         </div>
+                                        {isUploadingLogo && (
+                                            <div className="mt-2 flex items-center justify-between bg-white/5 border border-white/10 rounded-lg p-2">
+                                                <span className="text-xs text-accent animate-pulse">Uploading logo...</span>
+                                                <button onClick={cancelTournamentLogoUpload} className="text-xs text-red-400 hover:text-red-300">Cancel</button>
+                                            </div>
+                                        )}
+                                        {imageUrl && !isUploadingLogo && (
+                                            <div className="mt-2 flex items-center justify-between bg-white/5 border border-white/10 rounded-lg p-2">
+                                                <div className="flex items-center gap-3">
+                                                    <img src={imageUrl} alt="Tournament Logo" className="w-12 h-12 object-cover rounded-md border border-white/10" />
+                                                    <span className="text-xs text-green-400">✓ Logo uploaded</span>
+                                                </div>
+                                                <button onClick={() => setImageUrl('')} className="text-xs text-red-400 hover:text-red-300 w-fit bg-red-500/10 px-2 py-1 rounded border border-red-500/20 transition">Remove Logo</button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-400 mb-2">Prize Pool (Optional)</label>
@@ -223,7 +340,7 @@ export default function CreateTournament() {
                             <div className="flex justify-end mt-8">
                                 <button
                                     onClick={initializeTeams}
-                                    disabled={!tournamentName}
+                                    disabled={!tournamentName || isUploadingLogo}
                                     className="bg-accent text-black font-bold px-8 py-3 rounded-xl hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(255,215,0,0.3)]"
                                 >
                                     Enter Team Names <ArrowRight className="w-5 h-5" />
@@ -255,13 +372,26 @@ export default function CreateTournament() {
                                             className="flex-1 min-w-0 bg-transparent border-none focus:ring-0 text-white placeholder-gray-700"
                                             placeholder={`Team Name ${index + 1}`}
                                         />
-                                        <input
-                                            type="text"
-                                            value={team.logoUrl}
-                                            onChange={(e) => handleTeamLogoChange(index, e.target.value)}
-                                            className="w-full sm:w-48 bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/50"
-                                            placeholder="Logo URL (optional)"
-                                        />
+                                        <div className="w-full sm:w-48 relative">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => handleTeamLogoUpload(index, e)}
+                                                disabled={uploadingTeamIndex === index}
+                                                className="w-full bg-neutral-800/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-accent/50 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 disabled:opacity-50 cursor-pointer"
+                                            />
+                                            {uploadingTeamIndex === index && (
+                                                <div className="absolute inset-0 bg-neutral-800/90 rounded-lg flex items-center justify-between px-3">
+                                                    <span className="text-xs text-accent font-bold animate-pulse">Uploading...</span>
+                                                    <button onClick={() => cancelTeamLogoUpload()} className="text-xs text-red-400 hover:text-red-300 font-bold z-10 relative">✕</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {team.logoUrl && (
+                                            <button onClick={() => handleTeamLogoChange(index, '')} className="p-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition border border-red-500/20 mt-2 sm:mt-0" title="Remove logo">
+                                                Remove
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -272,7 +402,7 @@ export default function CreateTournament() {
                                 </div>
                                 <button
                                     onClick={handleGenerateBracket}
-                                    disabled={teams.some(t => !t.name)}
+                                    disabled={teams.some(t => !t.name) || uploadingTeamIndex !== null}
                                     className="bg-accent text-black font-bold px-8 py-3 rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(255,215,0,0.3)]"
                                 >
                                     Preview Bracket
