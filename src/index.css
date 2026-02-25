@@ -15,6 +15,7 @@
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
+    color-scheme: dark;
   }
 
   body {
@@ -176,4 +177,87 @@
 
 body {
   top: 0 !important;
+}
+
+/* ===== Tournament Bracket — Premium Esports Theme ===== */
+
+/* SVG canvas background */
+.bracket-dark-wrapper svg {
+  background: #0a0a0a !important;
+}
+
+/* ── Match card rectangles ── */
+.bracket-dark-wrapper svg rect {
+  fill: #141419 !important;
+  stroke: #2a2a35 !important;
+  stroke-width: 1.5 !important;
+  rx: 6 !important;
+  ry: 6 !important;
+}
+
+/* ── Text inside SVG ── */
+/* ONLY set font-family. Do NOT set fill here — SVG presentation attributes
+   have lower specificity than CSS, so any CSS fill overrides the library's
+   score text colors (black on yellow for winners becomes invisible). */
+.bracket-dark-wrapper svg text {
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
+}
+
+/* ── Connector lines between matches ── */
+.bracket-dark-wrapper svg path {
+  stroke: #facc1540 !important;
+  stroke-width: 2 !important;
+}
+
+.bracket-dark-wrapper svg line {
+  stroke: #facc1530 !important;
+  stroke-width: 2 !important;
+}
+
+/* ── Score cells ── */
+.bracket-dark-wrapper svg rect+text,
+.bracket-dark-wrapper [class*="score"] {
+  font-weight: 700 !important;
+}
+
+/* ── Hover / highlighted match glow ── */
+.bracket-dark-wrapper svg g:hover>rect {
+  fill: #1a1a24 !important;
+  stroke: #facc15 !important;
+  stroke-width: 2 !important;
+  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.15));
+}
+
+/* ── Bracket Export Watermark ── */
+.bracket-export-wrapper {
+  position: relative;
+}
+
+.bracket-export-wrapper::after {
+  content: 'ESCRIMS';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-25deg);
+  font-size: 10rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(250, 204, 21, 0.04);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+  user-select: none;
+}
+
+/* Dark theme for native datetime-local picker dropdowns */
+input[type="datetime-local"],
+input[type="date"],
+input[type="time"] {
+  color-scheme: dark;
+}
+
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
 }

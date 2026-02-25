@@ -99,7 +99,10 @@ export default function Dashboard() {
                                             </span>
                                         </div>
                                         <h3 className="text-xl font-bold mb-2 group-hover:text-accent transition-colors line-clamp-1">{tournament.name}</h3>
-                                        <p className="text-sm text-gray-400 mb-4">{tournament.teams?.length || 0} Teams • Single Elim</p>
+                                        <p className="text-sm text-gray-400 mb-4">
+                                            {tournament.teams?.length || 0} Teams •{' '}
+                                            {tournament.bracketConfig?.format || 'Single Elimination'}
+                                        </p>
 
                                         <div className="flex items-center text-sm text-gray-500 group-hover:text-white transition-colors">
                                             Manage Tournament <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />

@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, ArrowRight, Shield, DollarSign, RefreshCw } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
-import { shuffleTeams, generateMatches } from '../lib/tournamentLogic';
+import { shuffleTeams, generateTournamentBracket } from '../lib/tournamentLogic';
 import type { Team, Match } from '../lib/tournamentLogic';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -23,6 +23,19 @@ export default function CreateTournament() {
     const [teams, setTeams] = useState<{ name: string; logoUrl: string }[]>([]);
     const [shuffledTeams, setShuffledTeams] = useState<Team[]>([]);
     const [generatedMatches, setGeneratedMatches] = useState<Match[]>([]);
+    const [bracketConfig, setBracketConfig] = useState<{
+        format: 'Single Elimination' | 'Double Elimination';
+        groupStageFormat: 'Bo1' | 'Bo2' | 'Bo3';
+        upperBracketFormat: 'Bo3' | 'Bo5';
+        lowerBracketFormat: 'Bo1' | 'Bo3' | 'Bo5';
+        grandFinalFormat: 'Bo5' | 'Bo7';
+    }>({
+        format: 'Single Elimination',
+        groupStageFormat: 'Bo1',
+        upperBracketFormat: 'Bo3',
+        lowerBracketFormat: 'Bo1',
+        grandFinalFormat: 'Bo5'
+    });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [uploadingTeamIndex, setUploadingTeamIndex] = useState<number | null>(null);
@@ -34,6 +47,8 @@ export default function CreateTournament() {
         message: '', type: 'info', visible: false
     });
     const showToast = (message: string, type: ToastType) => setToast({ message, type, visible: true });
+
+    const TEAM_COUNT_OPTIONS = [4, 8, 12, 16, 24, 32] as const;
 
     const handleTeamCountChange = (count: number) => {
         setTeamCount(count);
@@ -155,7 +170,8 @@ export default function CreateTournament() {
         }
         const teamsData = teams.map(t => ({ name: t.name.trim(), logoUrl: t.logoUrl.trim() }));
         const shuffled = shuffleTeams(teamsData);
-        const matches = generateMatches(shuffled);
+        const configWithGroupStage = { ...bracketConfig, hasGroupStage: true };
+        const matches = generateTournamentBracket(shuffled, configWithGroupStage);
         setShuffledTeams(shuffled);
         setGeneratedMatches(matches);
         setStep(3);
@@ -165,7 +181,8 @@ export default function CreateTournament() {
     const handleReshuffle = () => {
         const teamsData = teams.map(t => ({ name: t.name.trim(), logoUrl: t.logoUrl.trim() }));
         const shuffled = shuffleTeams(teamsData);
-        const matches = generateMatches(shuffled);
+        const configWithGroupStage = { ...bracketConfig, hasGroupStage: true };
+        const matches = generateTournamentBracket(shuffled, configWithGroupStage);
         setShuffledTeams(shuffled);
         setGeneratedMatches(matches);
         showToast("Teams reshuffled!", "success");
@@ -193,13 +210,23 @@ export default function CreateTournament() {
                 imageUrl,
                 prizePool,
                 prizePoolValue: parsePrizePool(prizePool),
+                bracketConfig: { ...bracketConfig, hasGroupStage: true },
                 teams: shuffledTeams,
-                matches: generatedMatches,
+                matches: [], // Clear top level array, matches now go to subcollection
                 status: 'pending_approval',
                 createdAt: serverTimestamp()
             };
 
+            // 1. Create the main tournament document
             await setDoc(doc(db, "tournaments", tournamentId), newTournament);
+
+            // 2. Batch write the generated matches into a subcollection to avoid 1MB document limits
+            const batch = writeBatch(db);
+            generatedMatches.forEach((match) => {
+                const matchRef = doc(db, "tournaments", tournamentId, "matches", match.id);
+                batch.set(matchRef, match);
+            });
+            await batch.commit();
             setCreatedTournamentId(tournamentId);
             setStep(4);
         } catch (error) {
@@ -325,17 +352,101 @@ export default function CreateTournament() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-2">Number of Teams</label>
-                                    <div className="flex gap-3 flex-wrap">
-                                        {[4, 8, 16, 32, 64].map(count => (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                                        {TEAM_COUNT_OPTIONS.map((n) => (
                                             <button
-                                                key={count}
-                                                onClick={() => handleTeamCountChange(count)}
-                                                className={`w-16 h-16 rounded-xl font-bold text-xl transition-all ${teamCount === count ? 'bg-accent text-black shadow-[0_0_20px_rgba(255,215,0,0.3)]' : 'bg-white/5 border border-white/10 hover:bg-white/10'}`}
-                                            >{count}</button>
+                                                key={n}
+                                                type="button"
+                                                onClick={() => handleTeamCountChange(n)}
+                                                className={`rounded-xl border py-4 px-4 text-center font-bold text-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-neutral-900 ${
+                                                    teamCount === n
+                                                        ? 'bg-accent border-accent text-black'
+                                                        : 'bg-neutral-950 border-white/10 text-white hover:border-white/20'
+                                                }`}
+                                            >
+                                                {n}
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
                             </div>
+
+                            {/* ========================================== */}
+                            {/* ADVANCED BRACKET CONFIGURATION SECTION   */}
+                            {/* ========================================== */}
+                            <div className="mt-8 pt-8 border-t border-white/10">
+                                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 text-accent uppercase tracking-widest font-display">
+                                    Advanced Bracket Configuration
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-400 mb-1">Tournament Format</label>
+                                        <select
+                                            value={bracketConfig.format}
+                                            onChange={(e) => setBracketConfig({ ...bracketConfig, format: e.target.value as any })}
+                                            className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent appearance-none capitalize"
+                                        >
+                                            <option value="Single Elimination">Single Elimination</option>
+                                            <option value="Double Elimination">Double Elimination</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-400 mb-1">Group Stage Format</label>
+                                        <select
+                                            value={bracketConfig.groupStageFormat}
+                                            onChange={(e) => setBracketConfig({ ...bracketConfig, groupStageFormat: e.target.value as any })}
+                                            className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent appearance-none"
+                                        >
+                                            <option value="Bo1">Best of 1</option>
+                                            <option value="Bo2">Best of 2</option>
+                                            <option value="Bo3">Best of 3</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-400 mb-1">
+                                            {bracketConfig.format === 'Double Elimination' ? 'Upper Bracket Format' : 'Knockout Format'}
+                                        </label>
+                                        <select
+                                            value={bracketConfig.upperBracketFormat}
+                                            onChange={(e) => setBracketConfig({ ...bracketConfig, upperBracketFormat: e.target.value as any })}
+                                            className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent appearance-none"
+                                        >
+                                            <option value="Bo3">Best of 3</option>
+                                            <option value="Bo5">Best of 5</option>
+                                        </select>
+                                    </div>
+                                    {bracketConfig.format === 'Double Elimination' && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-400 mb-1">Lower Bracket Format</label>
+                                            <select
+                                                value={bracketConfig.lowerBracketFormat}
+                                                onChange={(e) => setBracketConfig({ ...bracketConfig, lowerBracketFormat: e.target.value as any })}
+                                                className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent appearance-none"
+                                            >
+                                                <option value="Bo1">Best of 1</option>
+                                                <option value="Bo3">Best of 3</option>
+                                                <option value="Bo5">Best of 5</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-400 mb-1">Grand Final Format</label>
+                                        <select
+                                            value={bracketConfig.grandFinalFormat}
+                                            onChange={(e) => setBracketConfig({ ...bracketConfig, grandFinalFormat: e.target.value as any })}
+                                            className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent appearance-none"
+                                        >
+                                            <option value="Bo5">Best of 5</option>
+                                            <option value="Bo7">Best of 7</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            {/* ========================================== */}
 
                             <div className="flex justify-end mt-8">
                                 <button
@@ -426,38 +537,76 @@ export default function CreateTournament() {
 
                             <p className="text-gray-400 text-sm mb-6">Review the matchups below. Click "Reshuffle" to randomize again.</p>
 
-                            <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
-                                {generatedMatches.map((match, idx) => (
-                                    <div key={match.id} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/[0.08] transition">
-                                        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-                                            <span className="text-gray-500 font-mono text-sm hidden sm:block w-8">#{idx + 1}</span>
+                            <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-4">
+                                {/* Group stage is always used */}
+                                {(() => {
+                                    const total = shuffledTeams.length;
+                                    if (total === 0) return null;
 
-                                            {/* Team 1 */}
-                                            <div className="flex items-center gap-3 sm:flex-1 sm:justify-end w-full sm:w-auto justify-center">
-                                                <span className="font-bold text-white sm:text-right truncate">{match.team1?.name}</span>
-                                                <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                    {match.team1?.name?.substring(0, 2).toUpperCase()}
+                                    let numGroups: number;
+                                    if (total === 4) numGroups = 1;
+                                    else if (total === 8) numGroups = 2;
+                                    else if (total === 12) numGroups = 3;
+                                    else numGroups = 4;
+
+                                    const groupSize = total / numGroups;
+                                    const groups: Team[][] = [];
+                                    let index = 0;
+                                    for (let g = 0; g < numGroups; g++) {
+                                        groups.push(shuffledTeams.slice(index, index + groupSize));
+                                        index += groupSize;
+                                    }
+
+                                    const labels = ['Group A', 'Group B', 'Group C', 'Group D'];
+
+                                    const gridColsClass =
+                                        numGroups === 1
+                                            ? 'grid-cols-1'
+                                            : numGroups === 2
+                                            ? 'grid-cols-1 md:grid-cols-2'
+                                            : numGroups === 3
+                                            ? 'grid-cols-1 md:grid-cols-3'
+                                            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
+
+                                    return (
+                                        <div className={`grid ${gridColsClass} gap-4`}>
+                                            {groups.map((groupTeams, gIdx) => (
+                                                <div
+                                                    key={gIdx}
+                                                    className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/[0.08] transition flex flex-col"
+                                                >
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="font-bold text-white text-sm uppercase tracking-wide">
+                                                            {labels[gIdx]}
+                                                        </h4>
+                                                        <span className="text-[10px] text-gray-400 font-mono">
+                                                            {groupTeams.length} Teams
+                                                        </span>
+                                                    </div>
+                                                    {groupTeams.length === 0 ? (
+                                                        <p className="text-xs text-gray-500 italic">
+                                                            No team assigned.
+                                                        </p>
+                                                    ) : (
+                                                        <ul className="space-y-2 text-sm">
+                                                            {groupTeams.map(team => (
+                                                                <li
+                                                                    key={team.id}
+                                                                    className="flex items-center gap-2 text-white"
+                                                                >
+                                                                    <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-[11px] font-bold text-gray-300">
+                                                                        {team.name.substring(0, 2).toUpperCase()}
+                                                                    </div>
+                                                                    <span className="truncate">{team.name}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
                                                 </div>
-                                            </div>
-
-                                            <span className="text-accent font-bold text-lg px-3">VS</span>
-
-                                            {/* Team 2 */}
-                                            <div className="flex items-center gap-3 sm:flex-1 w-full sm:w-auto justify-center">
-                                                {match.team2 ? (
-                                                    <>
-                                                        <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-400 shrink-0">
-                                                            {match.team2.name.substring(0, 2).toUpperCase()}
-                                                        </div>
-                                                        <span className="font-bold text-white truncate">{match.team2.name}</span>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-gray-500 italic">BYE</span>
-                                                )}
-                                            </div>
+                                            ))}
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })()}
                             </div>
 
                             <div className="flex flex-col sm:flex-row sm:justify-between items-center gap-4 mt-8 pt-6 border-t border-white/10">
