@@ -4,13 +4,19 @@ import { db } from '../../lib/firebase';
 import type { Match, Team } from '../../lib/tournamentLogic';
 import { Check, Clock, AlertTriangle, Calendar } from 'lucide-react';
 import DateTimePicker from '../ui/DateTimePicker';
+import type { ToastType } from '../ui/Toast';
 
 interface ManageMatchesAdminProps {
     tournamentId: string;
     onMatchUpdate?: () => void;
+    onToast?: (message: string, type: ToastType) => void;
 }
 
-export default function ManageMatchesAdmin({ tournamentId, onMatchUpdate }: ManageMatchesAdminProps) {
+export default function ManageMatchesAdmin({ tournamentId, onMatchUpdate, onToast }: ManageMatchesAdminProps) {
+    const toast = (message: string, type: ToastType) => {
+        if (onToast) onToast(message, type);
+        else alert(message);
+    };
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStage, setFilterStage] = useState<string>('All');
@@ -127,7 +133,7 @@ export default function ManageMatchesAdmin({ tournamentId, onMatchUpdate }: Mana
         if (!hasScore) {
             const startTimeValue = startTimes[match.id] || null;
             if (!startTimeValue) {
-                alert('Please set a date/time or enter scores.');
+                toast('Please set a date/time or enter scores.', 'error');
                 return;
             }
 
@@ -146,11 +152,11 @@ export default function ManageMatchesAdmin({ tournamentId, onMatchUpdate }: Mana
                     }
                     return ms;
                 });
-                alert('Match schedule updated successfully!');
+                toast('Match schedule updated successfully!', 'success');
                 onMatchUpdate?.();
             } catch (error) {
                 console.error("Error updating match schedule:", error);
-                alert("Failed to update schedule. Check console.");
+                toast('Failed to update schedule. Check console.', 'error');
             } finally {
                 setSubmittingId(null);
             }
@@ -160,7 +166,7 @@ export default function ManageMatchesAdmin({ tournamentId, onMatchUpdate }: Mana
         // Scores are set — validate and submit result
         const validation = validateScore(currentScore.s1, currentScore.s2, match.format);
         if (!validation.valid) {
-            alert(validation.message || `Invalid score for format ${match.format || 'Bo1'}.`);
+            toast(validation.message || `Invalid score for format ${match.format || 'Bo1'}.`, 'error');
             return;
         }
 
@@ -328,7 +334,7 @@ export default function ManageMatchesAdmin({ tournamentId, onMatchUpdate }: Mana
                         }
 
                         await seedBatch.commit();
-                        alert(`Group stage complete! ${qualifiedTeams.length} teams have been seeded into the playoffs.`);
+                        toast(`Group stage complete! ${qualifiedTeams.length} teams have been seeded into the playoffs.`, 'success');
                     }
                 }
             }
@@ -351,7 +357,7 @@ export default function ManageMatchesAdmin({ tournamentId, onMatchUpdate }: Mana
 
         } catch (error) {
             console.error("Error batch updating matches:", error);
-            alert("Failed to submit score and auto-advance. Check console.");
+            toast('Failed to submit score and auto-advance. Check console.', 'error');
         } finally {
             setSubmittingId(null);
         }

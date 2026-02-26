@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { Match, Tournament } from '../../lib/tournamentLogic';
@@ -9,8 +9,12 @@ import {
     SVGViewer,
     createTheme
 } from '@g-loot/react-tournament-brackets';
-import { toPng } from 'html-to-image';
 import { Download } from 'lucide-react';
+import { StyleSheetManager } from 'styled-components';
+import Toast from '../ui/Toast';
+
+// Filter out custom props that the bracket library passes to DOM elements
+const shouldForwardProp = (prop: string) => !['won', 'hovered', 'highlighted'].includes(prop);
 
 const darkTheme = createTheme({
     textColor: { main: '#e2e2e8', highlighted: '#facc15', dark: '#555565' },
@@ -68,8 +72,8 @@ export default function TournamentBracketViewer({ tournamentId, refreshKey }: To
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [tournamentFormat, setTournamentFormat] = useState<'Single Elimination' | 'Double Elimination'>('Single Elimination');
-    const [isExporting, setIsExporting] = useState(false);
-    const exportRef = useRef<HTMLDivElement>(null);
+    const [tournamentName, setTournamentName] = useState<string>('');
+    const [showComingSoon, setShowComingSoon] = useState(false);
 
     useEffect(() => {
         const fetchMatchesAndTournament = async () => {
@@ -87,6 +91,7 @@ export default function TournamentBracketViewer({ tournamentId, refreshKey }: To
 
                 if (tournamentSnapshot.exists()) {
                     const data = tournamentSnapshot.data() as Tournament;
+                    setTournamentName(data.name || '');
                     const format = data.bracketConfig?.format || 'Single Elimination';
                     if (format === 'Double Elimination') {
                         setTournamentFormat('Double Elimination');
@@ -105,28 +110,9 @@ export default function TournamentBracketViewer({ tournamentId, refreshKey }: To
         fetchMatchesAndTournament();
     }, [tournamentId, refreshKey]);
 
-    const handleExport = useCallback(async () => {
-        if (!exportRef.current || isExporting) return;
-        setIsExporting(true);
-        try {
-            // Capture the full scrollable width of the export container
-            const el = exportRef.current;
-            const dataUrl = await toPng(el, {
-                pixelRatio: 2,
-                backgroundColor: '#0a0a0a',
-                width: el.scrollWidth,
-                height: el.scrollHeight,
-            });
-            const link = document.createElement('a');
-            link.download = `ESCRIMS_Bracket_${tournamentFormat.replace(' ', '_')}.png`;
-            link.href = dataUrl;
-            link.click();
-        } catch (err) {
-            console.error('Bracket export failed:', err);
-        } finally {
-            setIsExporting(false);
-        }
-    }, [isExporting, tournamentFormat]);
+    const handleDownloadClick = useCallback(() => {
+        setShowComingSoon(true);
+    }, []);
 
     const formatForSingleElimination = (internalMatches: Match[]) => {
         if (!internalMatches || internalMatches.length === 0) return [];
@@ -264,83 +250,85 @@ export default function TournamentBracketViewer({ tournamentId, refreshKey }: To
                     Playoff Bracket
                 </h3>
                 <button
-                    onClick={handleExport}
-                    disabled={isExporting}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleDownloadClick}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition font-bold text-sm"
                 >
                     <Download className="w-4 h-4" />
-                    {isExporting ? 'Exporting…' : 'Download Bracket'}
+                    Download Bracket
                 </button>
             </div>
 
-            {/* ──── Exportable Container ──── */}
+            {/* Bracket Container with Branding */}
             <div className="w-full overflow-x-auto custom-scrollbar">
-                <div
-                    ref={exportRef}
-                    id="bracket-export-container"
-                    className="bracket-export-wrapper relative min-w-fit bg-[#0a0a0a]"
-                >
-                    {/* Watermark — rendered via CSS ::after on .bracket-export-wrapper */}
-
-                    {/* ESCRIMS Branding Header (inside export area) */}
+                <div className="relative min-w-fit bg-[#0a0a0a] text-[#e2e2e8]">
+                    {/* Tournament Name Header */}
                     <div className="pt-6 pb-2 px-8">
                         <h1 className="text-4xl font-black text-yellow-400 text-center tracking-widest uppercase select-none">
-                            ESCRIMS
+                            {tournamentName || 'TOURNAMENT'}
                         </h1>
                         <p className="text-center text-gray-600 text-xs font-mono tracking-[0.3em] uppercase mt-1">
                             {tournamentFormat} Bracket
                         </p>
                     </div>
 
-                    {/* Bracket SVG — z-10 to sit above watermark */}
-                    <div className="bracket-dark-wrapper relative z-10 p-6">
-                        <BracketErrorBoundary>
-                            {tournamentFormat === 'Double Elimination' ? (
-                                <DoubleEliminationBracket
-                                    theme={darkTheme}
-                                    matches={doubleElimMatches}
-                                    matchComponent={BracketMatch}
-                                    svgWrapper={({ children, ...props }: { children: React.ReactNode } & any) => (
-                                        <SVGViewer
-                                            width={10000}
-                                            height={5000}
-                                            background="#0a0a0a"
-                                            SVGAlign="start"
-                                            {...props}
-                                        >
-                                            {children}
-                                        </SVGViewer>
-                                    )}
-                                />
-                            ) : (
-                                <SingleEliminationBracket
-                                    theme={darkTheme}
-                                    matches={singleElimMatches}
-                                    matchComponent={BracketMatch}
-                                    svgWrapper={({ children, ...props }: { children: React.ReactNode } & any) => (
-                                        <SVGViewer
-                                            width={10000}
-                                            height={5000}
-                                            background="#0a0a0a"
-                                            SVGAlign="start"
-                                            {...props}
-                                        >
-                                            {children}
-                                        </SVGViewer>
-                                    )}
-                                />
-                            )}
-                        </BracketErrorBoundary>
+                    {/* Bracket SVG */}
+                    <div className="bracket-dark-wrapper p-6 flex items-start justify-center">
+                        <StyleSheetManager shouldForwardProp={shouldForwardProp}>
+                            <BracketErrorBoundary>
+                                {tournamentFormat === 'Double Elimination' ? (
+                                    <DoubleEliminationBracket
+                                        theme={darkTheme}
+                                        matches={doubleElimMatches}
+                                        matchComponent={BracketMatch}
+                                        svgWrapper={({ children, ...props }: { children: React.ReactNode } & any) => (
+                                            <SVGViewer
+                                                width={10000}
+                                                height={5000}
+                                                background="#0a0a0a"
+                                                SVGAlign="xMidYMin"
+                                                {...props}
+                                            >
+                                                {children}
+                                            </SVGViewer>
+                                        )}
+                                    />
+                                ) : (
+                                    <SingleEliminationBracket
+                                        theme={darkTheme}
+                                        matches={singleElimMatches}
+                                        matchComponent={BracketMatch}
+                                        svgWrapper={({ children, ...props }: { children: React.ReactNode } & any) => (
+                                            <SVGViewer
+                                                width={10000}
+                                                height={5000}
+                                                background="#0a0a0a"
+                                                SVGAlign="xMidYMin"
+                                                {...props}
+                                            >
+                                                {children}
+                                            </SVGViewer>
+                                        )}
+                                    />
+                                )}
+                            </BracketErrorBoundary>
+                        </StyleSheetManager>
                     </div>
 
                     {/* Footer branding */}
-                    <div className="pb-4 px-8">
-                        <p className="text-center text-gray-700 text-[10px] font-mono tracking-[0.2em] uppercase">
+                    <div className="pb-6 px-8">
+                        <p className="text-center text-yellow-400/50 text-sm font-bold font-mono tracking-[0.3em] uppercase">
                             Generated by ESCRIMS • escrims.com
                         </p>
                     </div>
                 </div>
             </div>
+
+            <Toast
+                message="Coming Soon"
+                type="info"
+                isVisible={showComingSoon}
+                onClose={() => setShowComingSoon(false)}
+            />
         </div>
     );
 }

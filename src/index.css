@@ -228,26 +228,44 @@ body {
   filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.15));
 }
 
-/* ── Bracket Export Watermark ── */
+/* Bracket export wrapper — override Tailwind v4 oklch colors for image export */
 .bracket-export-wrapper {
   position: relative;
 }
 
-.bracket-export-wrapper::after {
-  content: 'ESCRIMS';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-25deg);
-  font-size: 10rem;
-  font-weight: 900;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(250, 204, 21, 0.04);
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 1;
-  user-select: none;
+/* Force ALL elements inside the export container to use standard hex colors.
+   Tailwind v4 uses oklch() which toPng cannot parse, causing white backgrounds. */
+#bracket-export-container {
+  color: #e2e2e8 !important;
+  background-color: #0a0a0a !important;
+  border-color: #2a2a35 !important;
+}
+
+#bracket-export-container * {
+  --tw-text-opacity: 1;
+  --tw-bg-opacity: 1;
+  --tw-border-opacity: 1;
+}
+
+/* Force SVG elements inside export container */
+#bracket-export-container svg {
+  background: #0a0a0a !important;
+}
+
+#bracket-export-container svg rect {
+  fill: #141419 !important;
+  stroke: #2a2a35 !important;
+}
+
+/* Force styled-components match boxes — the library renders divs with inline styles */
+#bracket-export-container div[style] {
+  border-color: #2a2a35 !important;
+}
+
+/* Force round headers */
+#bracket-export-container [class*="round"] {
+  background-color: #0a0a0a !important;
+  color: #facc15 !important;
 }
 
 /* Dark theme for native datetime-local picker dropdowns */

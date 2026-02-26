@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { toPng } from 'html-to-image';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Clock, Save, Trophy, Trash2, Download, Edit2, X, Users, Tv, Calendar } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
@@ -395,22 +394,7 @@ export default function TournamentView() {
     };
 
     const handleExport = async () => {
-        if (!exportRef.current) return;
-        try {
-            showToast("Generating image...", "info");
-            const dataUrl = await toPng(exportRef.current, {
-                pixelRatio: 3,
-                backgroundColor: '#0a0a0a',
-            });
-            const link = document.createElement('a');
-            link.download = 'Escrims_Standings.png';
-            link.href = dataUrl;
-            link.click();
-            showToast("Standings exported successfully!", "success");
-        } catch (error: any) {
-            console.error("Error exporting standings:", error);
-            showToast("Failed to export standings: " + (error?.message || error), "error");
-        }
+        showToast("Exporting Standings is coming soon!", "info");
     };
 
     if (loading) {
@@ -678,6 +662,84 @@ export default function TournamentView() {
                     )
                 }
 
+                {/* ============ TOURNAMENT WINNER BANNER ============ */}
+                {(() => {
+                    // Determine the tournament winner
+                    let winnerTeam: { name: string; logoUrl?: string } | null = null;
+
+                    if (tournament.bracketConfig) {
+                        // Bracket tournament: find the grand final match
+                        const playoffMatches = tournament.matches.filter(m => m.stage === 'playoff');
+                        const loserTargetIds = new Set(playoffMatches.map(m => m.loserMatchId).filter(Boolean));
+                        const finalMatch = playoffMatches.find(m =>
+                            !m.nextMatchId && !loserTargetIds.has(m.id)
+                        );
+                        if (finalMatch?.winnerId) {
+                            const winnerObj = finalMatch.winnerId === finalMatch.team1?.id ? finalMatch.team1 : finalMatch.team2;
+                            if (winnerObj) winnerTeam = winnerObj;
+                        }
+                    } else {
+                        // Legacy tournament: all matches completed → top-ranked team wins
+                        const allDone = tournament.matches.length > 0 && tournament.matches.every(m => m.winnerId);
+                        if (allDone) {
+                            const ranked = tournament.teams
+                                .map((team: any) => {
+                                    const teamId = typeof team === 'string' ? team : team.id;
+                                    const stats = teamStats[teamId] || { pts: 0, diff: 0 };
+                                    return { team, teamId, ...stats };
+                                })
+                                .sort((a, b) => {
+                                    if (b.pts !== a.pts) return b.pts - a.pts;
+                                    if (b.diff !== a.diff) return b.diff - a.diff;
+                                    const h2h = getHeadToHeadWinner(a.teamId, b.teamId);
+                                    if (h2h === a.teamId) return -1;
+                                    if (h2h === b.teamId) return 1;
+                                    return 0;
+                                });
+                            if (ranked.length > 0) {
+                                const top = ranked[0].team;
+                                winnerTeam = {
+                                    name: typeof top === 'string' ? top : top.name,
+                                    logoUrl: typeof top === 'string' ? undefined : top.logoUrl,
+                                };
+                            }
+                        }
+                    }
+
+                    if (!winnerTeam) return null;
+
+                    return (
+                        <div className="mb-8 animate-fade-in">
+                            <div className="relative overflow-hidden bg-gradient-to-r from-yellow-900/30 via-yellow-600/20 to-yellow-900/30 border border-accent/40 rounded-2xl p-6 md:p-8 shadow-[0_0_40px_rgba(255,215,0,0.15)]">
+                                {/* Decorative glow */}
+                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-40 bg-accent/20 rounded-full blur-3xl pointer-events-none" />
+
+                                <div className="relative flex flex-col items-center text-center gap-4">
+                                    <div className="bg-accent/20 p-3 rounded-full border border-accent/30">
+                                        <Trophy className="w-10 h-10 text-accent" />
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs font-bold uppercase tracking-[0.3em] text-accent/70 mb-2">Tournament Champion</p>
+                                        <div className="flex items-center justify-center gap-4">
+                                            {winnerTeam.logoUrl ? (
+                                                <img src={winnerTeam.logoUrl} alt={winnerTeam.name} className="w-14 h-14 rounded-full object-cover ring-2 ring-accent shadow-[0_0_20px_rgba(255,215,0,0.3)]" />
+                                            ) : (
+                                                <div className="w-14 h-14 bg-accent/20 rounded-full flex items-center justify-center text-xl font-bold text-accent ring-2 ring-accent/50">
+                                                    {winnerTeam.name?.substring(0, 2).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <h2 className="text-2xl md:text-4xl font-display font-bold uppercase tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-accent to-yellow-500">
+                                                {winnerTeam.name}
+                                            </h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {/* ============ TAB NAVIGATION ============ */}
                 <div className="flex overflow-x-auto custom-scrollbar border-b border-white/10 mb-8 pb-px">
                     <div className="flex gap-8 px-2 min-w-max">
@@ -732,7 +794,7 @@ export default function TournamentView() {
                 {
                     activeTab === 'overview' && (
                         <div className="space-y-12 animate-fade-in">
-                            {/* LIVE STREAM PLAYER */}
+                            {/* LIVE STREAM PLAYER — only show if stream link exists or user can manage */}
                             {((tournament as any).streamLink || canManage) && (
                                 <div>
                                     <div className="flex items-center justify-between mb-6">
@@ -807,29 +869,29 @@ export default function TournamentView() {
                                             No live stream configured yet. Click "Edit Stream" to add one.
                                         </div>
                                     )}
+                                </div>
+                            )}
 
-                                    {/* Additional Overview Content could go here if tournament has rules, format info, etc */}
-                                    {tournament.bracketConfig && (
-                                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-8 animate-fade-in">
-                                            <h3 className="text-xl font-bold font-display uppercase mb-4 text-gray-300">Format Details</h3>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                                                <div className="bg-black/30 rounded-xl p-4">
-                                                    <div className="text-gray-500 text-xs font-bold uppercase mb-1">Playoffs Format</div>
-                                                    <div className="text-white font-medium">{tournament.bracketConfig.format}</div>
-                                                </div>
-                                                {tournament.bracketConfig.hasGroupStage && (
-                                                    <div className="bg-black/30 rounded-xl p-4">
-                                                        <div className="text-gray-500 text-xs font-bold uppercase mb-1">Group Stage</div>
-                                                        <div className="text-white font-medium">{tournament.bracketConfig.groupStageFormat}</div>
-                                                    </div>
-                                                )}
-                                                <div className="bg-black/30 rounded-xl p-4">
-                                                    <div className="text-gray-500 text-xs font-bold uppercase mb-1">Finals Series</div>
-                                                    <div className="text-white font-medium">{tournament.bracketConfig.grandFinalFormat || tournament.bracketConfig.upperBracketFormat}</div>
-                                                </div>
-                                            </div>
+                            {/* FORMAT DETAILS — always visible to all users */}
+                            {tournament.bracketConfig && (
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-8 animate-fade-in">
+                                    <h3 className="text-xl font-bold font-display uppercase mb-4 text-gray-300">Format Details</h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                                        <div className="bg-black/30 rounded-xl p-4">
+                                            <div className="text-gray-500 text-xs font-bold uppercase mb-1">Playoffs Format</div>
+                                            <div className="text-white font-medium">{tournament.bracketConfig.format}</div>
                                         </div>
-                                    )}
+                                        {tournament.bracketConfig.hasGroupStage && (
+                                            <div className="bg-black/30 rounded-xl p-4">
+                                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">Group Stage</div>
+                                                <div className="text-white font-medium">{tournament.bracketConfig.groupStageFormat}</div>
+                                            </div>
+                                        )}
+                                        <div className="bg-black/30 rounded-xl p-4">
+                                            <div className="text-gray-500 text-xs font-bold uppercase mb-1">Finals Series</div>
+                                            <div className="text-white font-medium">{tournament.bracketConfig.grandFinalFormat || tournament.bracketConfig.upperBracketFormat}</div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1283,7 +1345,7 @@ export default function TournamentView() {
                 {/* ============ MANAGE TAB ============ */}
                 {activeTab === 'manage' && canManage && tournament.bracketConfig && (
                     <div className="animate-fade-in space-y-6 mb-12 mt-4">
-                        <ManageMatchesAdmin tournamentId={tournament.id} onMatchUpdate={fetchTournament} />
+                        <ManageMatchesAdmin tournamentId={tournament.id} onMatchUpdate={fetchTournament} onToast={showToast} />
                     </div>
                 )}
                 {/* Toast */}
