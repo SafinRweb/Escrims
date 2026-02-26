@@ -970,74 +970,76 @@ export default function TournamentView() {
                             )}
 
                             <div id="export-container" ref={exportRef} style={{ position: 'relative' }}>
-                                <div className="bg-neutral-900/50 border border-white/10 rounded-2xl overflow-hidden overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-white/5 text-gray-400 uppercase text-xs font-bold">
-                                            <tr>
-                                                <th className="px-3 md:px-6 py-4 w-12">#</th>
-                                                <th className="px-3 md:px-6 py-4">Team</th>
-                                                <th className="px-2 md:px-4 py-4 text-center" title="Matches Played">MP</th>
-                                                <th className="px-2 md:px-4 py-4 text-center text-green-400" title="Wins">W</th>
-                                                <th className="px-2 md:px-4 py-4 text-center text-red-400" title="Losses">L</th>
-                                                <th className="px-2 md:px-4 py-4 text-center" title="Differential">Diff</th>
-                                                <th className="px-2 md:px-4 py-4 text-right">Pts</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5">
-                                            {tournament.teams
-                                                .map((team: any, i: number) => {
-                                                    const teamName = typeof team === 'string' ? team : team.name;
-                                                    const teamId = typeof team === 'string' ? team : team.id;
-                                                    const stats = teamStats[teamId] || { mp: 0, w: 0, l: 0, diff: 0, pts: 0 };
-                                                    const logoUrl = typeof team === 'string' ? '' : (team.logoUrl || '');
-                                                    return { teamName, teamId, ...stats, logoUrl, idx: i };
-                                                })
-                                                .sort((a, b) => {
-                                                    if (b.pts !== a.pts) return b.pts - a.pts;
-                                                    if (b.diff !== a.diff) return b.diff - a.diff;
-                                                    const h2hWinner = getHeadToHeadWinner(a.teamId, b.teamId);
-                                                    if (h2hWinner === a.teamId) return -1;
-                                                    if (h2hWinner === b.teamId) return 1;
-                                                    return 0;
-                                                })
-                                                .map((t, rank) => (
-                                                    <tr key={t.idx} className="hover:bg-white/5 transition-colors">
-                                                        <td className="px-3 md:px-6 py-4">
-                                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${rank === 0 && t.pts > 0 ? 'bg-accent text-black' : 'bg-white/10 text-gray-400'}`}>
-                                                                {rank + 1}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 md:px-6 py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                {t.logoUrl ? (
-                                                                    <img src={t.logoUrl} alt={t.teamName} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                                                                ) : (
-                                                                    <div className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">
-                                                                        {t.teamName?.substring(0, 2).toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                                <span className="font-bold">{t.teamName}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-2 md:px-4 py-4 text-center">
-                                                            <span className="font-mono font-bold text-gray-300">{t.mp}</span>
-                                                        </td>
-                                                        <td className="px-2 md:px-4 py-4 text-center">
-                                                            <span className="font-mono font-bold text-green-400">{t.w}</span>
-                                                        </td>
-                                                        <td className="px-2 md:px-4 py-4 text-center">
-                                                            <span className="font-mono font-bold text-red-400">{t.l}</span>
-                                                        </td>
-                                                        <td className="px-2 md:px-4 py-4 text-center">
-                                                            <span className="font-mono font-bold text-gray-300">{t.diff > 0 ? `+${t.diff}` : t.diff}</span>
-                                                        </td>
-                                                        <td className="px-2 md:px-4 py-4 text-right">
-                                                            <span className="font-mono font-bold text-accent">{t.pts}</span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                        </tbody>
-                                    </table>
+                                <div className="bg-neutral-900/50 border border-white/10 rounded-2xl overflow-hidden">
+                                    <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-white/5 text-gray-400 uppercase text-xs font-bold">
+                                                <tr>
+                                                    <th className="px-3 md:px-6 py-4 w-12 whitespace-nowrap">#</th>
+                                                    <th className="px-3 md:px-6 py-4 whitespace-nowrap">Team</th>
+                                                    <th className="px-2 md:px-4 py-4 text-center whitespace-nowrap" title="Matches Played">MP</th>
+                                                    <th className="px-2 md:px-4 py-4 text-center text-green-400 whitespace-nowrap" title="Wins">W</th>
+                                                    <th className="px-2 md:px-4 py-4 text-center text-red-400 whitespace-nowrap" title="Losses">L</th>
+                                                    <th className="px-2 md:px-4 py-4 text-center whitespace-nowrap" title="Differential">Diff</th>
+                                                    <th className="px-2 md:px-4 py-4 text-right whitespace-nowrap">Pts</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {tournament.teams
+                                                    .map((team: any, i: number) => {
+                                                        const teamName = typeof team === 'string' ? team : team.name;
+                                                        const teamId = typeof team === 'string' ? team : team.id;
+                                                        const stats = teamStats[teamId] || { mp: 0, w: 0, l: 0, diff: 0, pts: 0 };
+                                                        const logoUrl = typeof team === 'string' ? '' : (team.logoUrl || '');
+                                                        return { teamName, teamId, ...stats, logoUrl, idx: i };
+                                                    })
+                                                    .sort((a, b) => {
+                                                        if (b.pts !== a.pts) return b.pts - a.pts;
+                                                        if (b.diff !== a.diff) return b.diff - a.diff;
+                                                        const h2hWinner = getHeadToHeadWinner(a.teamId, b.teamId);
+                                                        if (h2hWinner === a.teamId) return -1;
+                                                        if (h2hWinner === b.teamId) return 1;
+                                                        return 0;
+                                                    })
+                                                    .map((t, rank) => (
+                                                        <tr key={t.idx} className="hover:bg-white/5 transition-colors">
+                                                            <td className="px-3 md:px-6 py-4 whitespace-nowrap">
+                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${rank === 0 && t.pts > 0 ? 'bg-accent text-black' : 'bg-white/10 text-gray-400'}`}>
+                                                                    {rank + 1}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-3 md:px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex items-center gap-3">
+                                                                    {t.logoUrl ? (
+                                                                        <img src={t.logoUrl} alt={t.teamName} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                                                    ) : (
+                                                                        <div className="w-8 h-8 bg-neutral-800 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">
+                                                                            {t.teamName?.substring(0, 2).toUpperCase()}
+                                                                        </div>
+                                                                    )}
+                                                                    <span className="font-bold">{t.teamName}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-2 md:px-4 py-4 text-center whitespace-nowrap">
+                                                                <span className="font-mono font-bold text-gray-300">{t.mp}</span>
+                                                            </td>
+                                                            <td className="px-2 md:px-4 py-4 text-center whitespace-nowrap">
+                                                                <span className="font-mono font-bold text-green-400">{t.w}</span>
+                                                            </td>
+                                                            <td className="px-2 md:px-4 py-4 text-center whitespace-nowrap">
+                                                                <span className="font-mono font-bold text-red-400">{t.l}</span>
+                                                            </td>
+                                                            <td className="px-2 md:px-4 py-4 text-center whitespace-nowrap">
+                                                                <span className="font-mono font-bold text-gray-300">{t.diff > 0 ? `+${t.diff}` : t.diff}</span>
+                                                            </td>
+                                                            <td className="px-2 md:px-4 py-4 text-right whitespace-nowrap">
+                                                                <span className="font-mono font-bold text-accent">{t.pts}</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>

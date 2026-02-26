@@ -259,8 +259,8 @@ export default function TournamentBracketViewer({ tournamentId, refreshKey }: To
             </div>
 
             {/* Bracket Container with Branding */}
-            <div className="w-full overflow-x-auto custom-scrollbar">
-                <div className="relative min-w-fit bg-[#0a0a0a] text-[#e2e2e8]">
+            <div className="w-full overflow-x-auto overflow-y-auto touch-pan-x touch-pan-y custom-scrollbar">
+                <div className="relative min-w-max bg-[#0a0a0a] text-[#e2e2e8]">
                     {/* Tournament Name Header */}
                     <div className="pt-6 pb-2 px-8">
                         <h1 className="text-4xl font-black text-yellow-400 text-center tracking-widest uppercase select-none">
