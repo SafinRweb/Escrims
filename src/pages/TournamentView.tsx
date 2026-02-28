@@ -708,6 +708,17 @@ export default function TournamentView() {
 
                     if (!winnerTeam) return null;
 
+                    // ALWAYS look up the team in the main tournament.teams array to get the latest logoUrl/metadata
+                    const finalWinnerId = (winnerTeam as any).id;
+                    const officialTeam = tournament.teams.find((t: any) => (typeof t === 'string' ? t : t.id) === finalWinnerId);
+
+                    if (officialTeam) {
+                        winnerTeam = {
+                            name: typeof officialTeam === 'string' ? officialTeam : officialTeam.name,
+                            logoUrl: typeof officialTeam === 'string' ? undefined : officialTeam.logoUrl
+                        };
+                    }
+
                     return (
                         <div className="mb-8 animate-fade-in">
                             <div className="relative overflow-hidden bg-gradient-to-r from-yellow-900/30 via-yellow-600/20 to-yellow-900/30 border border-accent/40 rounded-2xl p-6 md:p-8 shadow-[0_0_40px_rgba(255,215,0,0.15)]">
