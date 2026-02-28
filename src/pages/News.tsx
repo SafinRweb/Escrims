@@ -53,15 +53,32 @@ export default function News() {
                                     }
                                 }
 
-                                // Fallback image if nothing was extracted
-                                const fallbackImage = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80';
+                                // Fallback images from Unsplash (gaming/esports related)
+                                const fallbackImages = [
+                                    'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80', // PC Gaming
+                                    'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80', // Controller
+                                    'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80', // Retro Gaming
+                                    'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=800&q=80', // Neon setup
+                                    'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?auto=format&fit=crop&w=800&q=80', // E-sports Arena
+                                    'https://images.unsplash.com/photo-1511884642898-4c92249e20b6?auto=format&fit=crop&w=800&q=80', // Gaming Concept
+                                ];
+
+                                // Deterministic fallback based on title
+                                const getFallbackImage = (title: string) => {
+                                    let hash = 0;
+                                    for (let i = 0; i < title.length; i++) {
+                                        hash = title.charCodeAt(i) + ((hash << 5) - hash);
+                                    }
+                                    const index = Math.abs(hash) % fallbackImages.length;
+                                    return fallbackImages[index];
+                                };
 
                                 return {
                                     id: `ext-${Date.now()}-${index}`,
                                     title: item.title,
                                     summary: cleanSummary,
                                     content: item.content || item.description || '',
-                                    imageUrl: extractedImage || fallbackImage,
+                                    imageUrl: extractedImage || getFallbackImage(item.title),
                                     date: new Date(item.pubDate),
                                     isExternal: true,
                                     externalUrl: item.link
