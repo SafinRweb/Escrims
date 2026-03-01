@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Save, Trophy, Trash2, Download, Edit2, X, Users, Tv, Calendar } from 'lucide-react';
+import { Clock, Save, Trophy, Trash2, Download, Edit2, X, Users, Tv, Calendar, Flame, Target, Swords, TrendingUp, BarChart3 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import TournamentBracketViewer from '../components/tournament/TournamentBracketViewer';
 import ManageMatchesAdmin from '../components/tournament/ManageMatchesAdmin';
@@ -882,6 +882,154 @@ export default function TournamentView() {
                                     )}
                                 </div>
                             )}
+
+                            {/* ============ TOURNAMENT STATS BENTO GRID ============ */}
+                            {(() => {
+                                // Only show if there are completed matches
+                                if (completedMatches.length === 0) return null;
+
+                                // 1. Most Wins
+                                let mostWinsTeam = { name: '—', count: 0 };
+                                Object.entries(teamStats).forEach(([tid, stats]) => {
+                                    if (stats.w > mostWinsTeam.count) {
+                                        const team = tournament.teams.find((t: any) => (typeof t === 'string' ? t : t.id) === tid);
+                                        mostWinsTeam = { name: team ? (typeof team === 'string' ? team : team.name) : tid, count: stats.w };
+                                    }
+                                });
+
+                                // 2. Winning Streak
+                                const streaks: Record<string, number> = {};
+                                const sortedCompleted = [...completedMatches].sort((a, b) => {
+                                    if (a.startTime && b.startTime) return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+                                    return 0;
+                                });
+                                const currentStreaks: Record<string, number> = {};
+                                sortedCompleted.forEach(m => {
+                                    if (!m.winnerId) return;
+                                    currentStreaks[m.winnerId] = (currentStreaks[m.winnerId] || 0) + 1;
+                                    // Reset loser streak
+                                    const loserId = m.team1?.id === m.winnerId ? m.team2?.id : m.team1?.id;
+                                    if (loserId) currentStreaks[loserId] = 0;
+                                    // Track max
+                                    if (!streaks[m.winnerId] || currentStreaks[m.winnerId] > streaks[m.winnerId]) {
+                                        streaks[m.winnerId] = currentStreaks[m.winnerId];
+                                    }
+                                });
+                                let streakTeam = { name: '—', count: 0 };
+                                // Use current streaks for "active" winning streak
+                                Object.entries(currentStreaks).forEach(([tid, count]) => {
+                                    if (count > streakTeam.count) {
+                                        const team = tournament.teams.find((t: any) => (typeof t === 'string' ? t : t.id) === tid);
+                                        streakTeam = { name: team ? (typeof team === 'string' ? team : team.name) : tid, count };
+                                    }
+                                });
+
+                                // 3. Highest Score in a single match
+                                let highestScore = { teamName: '—', score: 0 };
+                                completedMatches.forEach(m => {
+                                    const s1 = m.score1 || 0;
+                                    const s2 = m.score2 || 0;
+                                    if (s1 > highestScore.score && m.team1) {
+                                        highestScore = { teamName: m.team1.name, score: s1 };
+                                    }
+                                    if (s2 > highestScore.score && m.team2) {
+                                        highestScore = { teamName: m.team2.name, score: s2 };
+                                    }
+                                });
+
+                                // 4. Best Differential
+                                let bestDiff = { name: '—', diff: -Infinity };
+                                Object.entries(teamStats).forEach(([tid, stats]) => {
+                                    if (stats.diff > bestDiff.diff) {
+                                        const team = tournament.teams.find((t: any) => (typeof t === 'string' ? t : t.id) === tid);
+                                        bestDiff = { name: team ? (typeof team === 'string' ? team : team.name) : tid, diff: stats.diff };
+                                    }
+                                });
+
+                                // 5. Next Match
+                                const nextMatch = upcomingMatches.find(m => m.startTime);
+                                const nextMatchDisplay = nextMatch
+                                    ? { teams: `${nextMatch.team1?.name || 'TBD'} vs ${nextMatch.team2?.name || 'TBD'}`, date: formatDate(nextMatch.startTime) }
+                                    : null;
+
+                                return (
+                                    <div className="animate-fade-in">
+                                        <h3 className="text-2xl font-bold font-display uppercase text-gray-300 flex items-center gap-3 mb-6">
+                                            <BarChart3 className="w-6 h-6 text-accent" /> Tournament Highlights
+                                        </h3>
+                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {/* Winning Streak */}
+                                            <div className="bg-gradient-to-br from-orange-500/10 to-transparent border border-orange-500/20 rounded-2xl p-5 flex flex-col gap-2 group hover:border-orange-500/40 transition-all">
+                                                <div className="flex items-center gap-2 text-orange-400">
+                                                    <Flame className="w-5 h-5" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Winning Streak</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-white">{streakTeam.count}W</div>
+                                                <div className="text-sm text-gray-400 truncate">{streakTeam.name}</div>
+                                            </div>
+
+                                            {/* Most Wins */}
+                                            <div className="bg-gradient-to-br from-accent/10 to-transparent border border-accent/20 rounded-2xl p-5 flex flex-col gap-2 group hover:border-accent/40 transition-all">
+                                                <div className="flex items-center gap-2 text-accent">
+                                                    <Trophy className="w-5 h-5" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Most Wins</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-white">{mostWinsTeam.count}</div>
+                                                <div className="text-sm text-gray-400 truncate">{mostWinsTeam.name}</div>
+                                            </div>
+
+                                            {/* Matches Played */}
+                                            <div className="bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 rounded-2xl p-5 flex flex-col gap-2 group hover:border-blue-500/40 transition-all">
+                                                <div className="flex items-center gap-2 text-blue-400">
+                                                    <Swords className="w-5 h-5" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Matches Played</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-white">{completedMatches.length}</div>
+                                                <div className="text-sm text-gray-400">{upcomingMatches.length} remaining</div>
+                                            </div>
+
+                                            {/* Highest Score */}
+                                            <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-2xl p-5 flex flex-col gap-2 group hover:border-purple-500/40 transition-all">
+                                                <div className="flex items-center gap-2 text-purple-400">
+                                                    <Target className="w-5 h-5" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Highest Score</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-white">{highestScore.score}</div>
+                                                <div className="text-sm text-gray-400 truncate">{highestScore.teamName}</div>
+                                            </div>
+
+                                            {/* Best Differential */}
+                                            <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-2xl p-5 flex flex-col gap-2 group hover:border-emerald-500/40 transition-all">
+                                                <div className="flex items-center gap-2 text-emerald-400">
+                                                    <TrendingUp className="w-5 h-5" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Best Differential</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-white">{bestDiff.diff > 0 ? '+' : ''}{bestDiff.diff === -Infinity ? '—' : bestDiff.diff}</div>
+                                                <div className="text-sm text-gray-400 truncate">{bestDiff.diff === -Infinity ? '—' : bestDiff.name}</div>
+                                            </div>
+
+                                            {/* Next Match */}
+                                            <div className="bg-gradient-to-br from-cyan-500/10 to-transparent border border-cyan-500/20 rounded-2xl p-5 flex flex-col gap-2 group hover:border-cyan-500/40 transition-all">
+                                                <div className="flex items-center gap-2 text-cyan-400">
+                                                    <Calendar className="w-5 h-5" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Next Match</span>
+                                                </div>
+                                                {nextMatchDisplay ? (
+                                                    <>
+                                                        <div className="text-lg font-bold text-white truncate">{nextMatchDisplay.teams}</div>
+                                                        <div className="text-sm text-gray-400">{nextMatchDisplay.date}</div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="text-lg font-bold text-white">—</div>
+                                                        <div className="text-sm text-gray-400">No upcoming matches</div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             {/* FORMAT DETAILS — always visible to all users */}
                             {tournament.bracketConfig && (
