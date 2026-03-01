@@ -143,20 +143,26 @@ export const generateTournamentBracket = (teams: Team[], config: BracketConfig):
         }
 
         // Lower bracket subsequent rounds
-        // Pattern: Each round gets losers from upper bracket + winners from previous lower round
+        // Correct double-elimination pattern: for each upper round after R1,
+        // create a "dropout" round (UB losers drop in to play LB winners)
+        // and, if needed, a "consolidation" round (LB survivors play each other).
         let lowerRound = 1;
         for (let upperRound = 1; upperRound < totalRounds; upperRound++) {
-            // Lower bracket round gets matches equal to upper bracket round size
-            const matchesInLowerRound = upperBracket[upperRound].length;
-            lowerBracket.push([]);
+            const droppedCount = upperBracket[upperRound].length;
+            const prevLBRound = lowerBracket[lowerRound - 1];
 
-            for (let m = 0; m < matchesInLowerRound; m++) {
+            // --- Dropout round: UB losers enter and play LB winners ---
+            const isLBFinal = droppedCount === 1 && upperRound === totalRounds - 1;
+            lowerBracket.push([]);
+            for (let m = 0; m < droppedCount; m++) {
                 lowerBracket[lowerRound].push({
                     id: generateId(),
                     round: lowerRound + 1,
                     stage: 'playoff',
                     format: config.lowerBracketFormat || 'Bo1',
-                    name: matchesInLowerRound === 1 ? 'Lower Bracket Final' : `Lower Bracket R${lowerRound + 1} Match ${m + 1}`,
+                    name: isLBFinal
+                        ? 'Lower Bracket Final'
+                        : `Lower Bracket R${lowerRound + 1} Match ${m + 1}`,
                     team1: null,
                     team2: null,
                     score1: 0,
@@ -168,22 +174,56 @@ export const generateTournamentBracket = (teams: Team[], config: BracketConfig):
                 });
             }
 
-            // Wire upper bracket losers to lower bracket
-            for (let m = 0; m < upperBracket[upperRound].length; m++) {
+            // Wire UB losers → dropout round
+            for (let m = 0; m < droppedCount; m++) {
                 upperBracket[upperRound][m].loserMatchId = lowerBracket[lowerRound][m].id;
             }
 
-            // Wire lower bracket: winners advance
-            if (lowerRound > 0) {
-                for (let m = 0; m < lowerBracket[lowerRound - 1].length; m++) {
-                    const nextMatchIndex = Math.floor(m / 2);
-                    if (nextMatchIndex < lowerBracket[lowerRound].length) {
-                        lowerBracket[lowerRound - 1][m].nextMatchId = lowerBracket[lowerRound][nextMatchIndex].id;
-                    }
+            // Wire previous LB round winners → dropout round (1:1 mapping)
+            for (let m = 0; m < prevLBRound.length; m++) {
+                if (m < lowerBracket[lowerRound].length) {
+                    prevLBRound[m].nextMatchId = lowerBracket[lowerRound][m].id;
                 }
             }
 
             lowerRound++;
+
+            // --- Consolidation round (only when dropout had 2+ matches) ---
+            if (droppedCount >= 2) {
+                const consolidationSize = Math.floor(droppedCount / 2);
+                const dropoutRound = lowerBracket[lowerRound - 1];
+
+                lowerBracket.push([]);
+                for (let m = 0; m < consolidationSize; m++) {
+                    lowerBracket[lowerRound].push({
+                        id: generateId(),
+                        round: lowerRound + 1,
+                        stage: 'playoff',
+                        format: config.lowerBracketFormat || 'Bo1',
+                        name: consolidationSize === 1
+                            ? `Lower Bracket R${lowerRound + 1}`
+                            : `Lower Bracket R${lowerRound + 1} Match ${m + 1}`,
+                        team1: null,
+                        team2: null,
+                        score1: 0,
+                        score2: 0,
+                        startTime: null,
+                        winnerId: null,
+                        nextMatchId: null,
+                        loserMatchId: null,
+                    });
+                }
+
+                // Wire dropout round winners → consolidation (2:1 mapping)
+                for (let m = 0; m < dropoutRound.length; m++) {
+                    const nextMatchIndex = Math.floor(m / 2);
+                    if (nextMatchIndex < lowerBracket[lowerRound].length) {
+                        dropoutRound[m].nextMatchId = lowerBracket[lowerRound][nextMatchIndex].id;
+                    }
+                }
+
+                lowerRound++;
+            }
         }
 
         // Grand Finals: Upper bracket winner vs Lower bracket winner
@@ -306,18 +346,19 @@ export const generateTournamentBracket = (teams: Team[], config: BracketConfig):
     // --- CASE 1: GROUP STAGE ENABLED ---
     if (config.hasGroupStage) {
         // 1) Group Stage Round-Robin
-        // With current UI constraints, team counts are one of:
-        // 4, 8, 12, 16, 24, 32
-        // 4 teams  -> 1 group of 4
-        // 8 teams  -> 2 groups of 4
-        // 12 teams -> 3 groups of 4
-        // 16–32    -> 4 groups (min 4 teams per group)
+        // Escrims tournament logic:
+        // 4 teams  -> 1 group of 4  (2 advance)
+        // 8 teams  -> 2 groups of 4 (4 advance)
+        // 12 teams -> 4 groups of 3 (8 advance)
+        // 16 teams -> 4 groups of 4 (8 advance)
+        // 24 teams -> 8 groups of 3 (16 advance)
+        // 32 teams -> 8 groups of 4 (16 advance)
         let numGroups: number;
         if (totalTeams === 4) numGroups = 1;
         else if (totalTeams === 8) numGroups = 2;
-        else if (totalTeams === 12) numGroups = 3;
-        else numGroups = 4;
-        const labels = ['A', 'B', 'C', 'D'];
+        else if (totalTeams <= 16) numGroups = 4;
+        else numGroups = 8;
+        const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
         const groups: Team[][] = [];
         let index = 0;

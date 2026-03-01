@@ -169,9 +169,28 @@ export default function TournamentBracketViewer({ tournamentId, refreshKey }: To
         const lower: any[] = [];
         const lowerMatchIds = new Set<string>();
 
+        // Seed: direct loserMatchId targets are lower bracket entry points
         playoffMatches.forEach(m => {
             if (m?.loserMatchId) lowerMatchIds.add(m.loserMatchId);
         });
+
+        // Expand: follow nextMatchId chains from known lower bracket matches
+        // so consolidation rounds (e.g. LB R3) that aren't loserMatchId targets
+        // are still classified correctly.
+        let changed = true;
+        while (changed) {
+            changed = false;
+            playoffMatches.forEach(m => {
+                if (m?.id && lowerMatchIds.has(m.id) && m.nextMatchId && matchMap[m.nextMatchId]) {
+                    const next = matchMap[m.nextMatchId];
+                    // Don't pull the Grand Final into the lower bracket
+                    if (!lowerMatchIds.has(next.id) && next.loserMatchId == null && !next.name?.includes('Grand Final')) {
+                        lowerMatchIds.add(next.id);
+                        changed = true;
+                    }
+                }
+            });
+        }
 
         playoffMatches.forEach(m => {
             const nextId = m?.nextMatchId ?? null;
